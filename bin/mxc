@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# shellcheck disable=SC2068
+java -cp "/usr/share/java/antlr-4.13.0-complete.jar:$(dirname $0)" src/Compiler $@

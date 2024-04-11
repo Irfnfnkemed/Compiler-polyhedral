@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!lib/antlr-4.13.0-complete.jar
 *.war
 *.nar
 *.ear
@@ -22,3 +23,19 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+src/test
+src/builtin/test
+src/builtin/test.ll
+src/builtin/test.s
+src/builtin/test_standard.ll
+src/builtin/test_mem2reg.ll
+*.s
+.idea
+out
+Compiler.iml
+IRgen
+aaa
+code
+
+test
