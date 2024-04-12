@@ -19,20 +19,20 @@ import src.Util.scope.GlobalScope;
 import src.Util.scope.Scope;
 import src.Util.type.Type;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.*;
 
 public class Semantic implements ASTVisitor {
     public GlobalScope globalScope;
     public Program ASTProgram;
     public HashSet<String> inlineGlobalVar;//仅在main函数出现的全局变量
+    public HashMap<String, List<VariableLhsExp>> inlineGlobalNode;//仅在main函数出现的全局变量对应的节点
     private boolean isMain = false;//当前是否在处理main函数
 
     public Semantic(Program ASTProgram_) {
         globalScope = new GlobalScope();
         ASTProgram = ASTProgram_;
         inlineGlobalVar = new HashSet<>();
+        inlineGlobalNode = new HashMap<>();
         for (var def : ASTProgram.defList) {
             if (def.functionDef != null) {
                 globalScope.setFunction(def.functionDef.functionName, def.functionDef.type,
@@ -60,6 +60,7 @@ public class Semantic implements ASTVisitor {
 
     public void visit(Program node) {
         boolean mainExist = false;
+        //Definition mainDef = null;
         for (var def : node.defList) {
             if (def.mainDef != null) {
                 if (mainExist) {
@@ -67,12 +68,15 @@ public class Semantic implements ASTVisitor {
                 } else {
                     mainExist = true;
                 }
+                //mainDef = def;
+                //continue;
             }
             def.accept(this);
         }
         if (!mainExist) {
             throw new SemanticErrors("[Program error] Missing main function.", node.position);
         }
+        // mainDef.accept(this);
     }
 
     public void visit(Definition node) {
@@ -665,9 +669,17 @@ public class Semantic implements ASTVisitor {
                     typeTmp = varTmp.type;
                     if (!isMain) {
                         inlineGlobalVar.remove(node.variableName);
+                        var varNodeList = inlineGlobalNode.get(node.variableName);
+                        if (varNodeList != null) {
+                            for (var varNode : varNodeList) {
+                                varNode.line = 0;
+                                varNode.column = 0;
+                            }
+                        }
                     } else if (inlineGlobalVar.contains(node.variableName)) {
                         node.line = varTmp.line;
                         node.column = varTmp.column;
+                        inlineGlobalNode.computeIfAbsent(node.variableName, k -> new ArrayList<>()).add(node);
                     }
                 }
             }

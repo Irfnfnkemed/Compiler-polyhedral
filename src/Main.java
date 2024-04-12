@@ -36,11 +36,11 @@ public class Main {
             ParseTree ctx = parser.program();
             ASTBuilder AST = new ASTBuilder(ctx);
             Semantic semantic = new Semantic(AST.ASTProgram);
-              semantic.check();
+            semantic.check();
         } catch (Errors errors) {
             System.err.println(errors.toString());
         }
-        testSemantic();
+        //testSemantic();
         //testIR();
     }
 }
