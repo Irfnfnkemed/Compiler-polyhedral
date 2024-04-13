@@ -26,6 +26,8 @@ public class Icmp extends Instruction {
     }
 
     public Icmp(String cond_, IRType irType_) {
+        left = new Cell();
+        right = new Cell();
         switch (cond_) {
             case "<" -> cond = "slt";
             case ">" -> cond = "sgt";

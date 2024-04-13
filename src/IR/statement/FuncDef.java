@@ -54,8 +54,7 @@ public class FuncDef extends IRStatement {
     public IRType irType;
     public String functionName;
     public List<IRType> parameterTypeList;
-    public List<Instruction> irList;
-    public List<Label> labelList;
+    public List<Block> irList;
 
     public Stack<ifStatus> ifStatusStack;
     public Stack<loopStatus> loopStatusStack;
@@ -63,14 +62,11 @@ public class FuncDef extends IRStatement {
     public Stack<Boolean> ifAndLoopOrder;//true为if，反之为loop
 
     public boolean notReturn = true;
-    public int initInsertIndex = 1;
-    public int allocaIndex = 1;
-    public String label = "%entry";
-    public String returnLabel = "returnLabel";
     public boolean isClassMethod = false;
     public int maxCallPara = -1;
     public HashMap<String, PhiInfo> phiMap;//phi指令，跳转来源标签->目标标签及赋值语段，便于汇编处理
     public List<Alloca> allocaList;
+    public List<Call> initList;
 
 
     public FuncDef() {
@@ -80,23 +76,23 @@ public class FuncDef extends IRStatement {
         loopStatusStack = new Stack<>();
         ifAndLoopOrder = new Stack<>();
         phiMap = new HashMap<>();
-        labelList = new ArrayList<>();
         allocaList = new ArrayList<>();
+        initList = new ArrayList<>();
     }
 
     public void pushPara(Type parameterType) {
         parameterTypeList.add(new IRType(parameterType));
     }
 
+    public void pushBlock(Block block) {
+        irList.add(block);
+    }
+
     public void push(Instruction instruction) {
         if (instruction instanceof Alloca) {
             allocaList.add((Alloca) instruction);
         } else {
-            irList.add(instruction);
-        }
-        if (instruction instanceof Label) {
-            label = "%" + ((Label) instruction).labelName;
-            labelList.add((Label) instruction);
+            irList.get(irList.size() - 1).instrList.add(instruction);
         }
         if (instruction instanceof Call) {
             if (((Call) instruction).callTypeList.size() > maxCallPara) {
@@ -105,19 +101,12 @@ public class FuncDef extends IRStatement {
         }
     }
 
-    public void insertAlloca() {
-        for (var alloca : allocaList) {
-            irList.add(allocaIndex++, alloca);
-        }
-    }
-
     public int pop() {//用于弹出对赋值号左侧不必要的指令
         Instruction tmp;
-        int tail = irList.size() - 1;
+        var instrList = irList.get(irList.size() - 1).instrList;
         int minus = 0;//匿名变量编号需要减少的值
         while (true) {
-            tmp = irList.get(tail);
-            irList.remove(tail--);
+            tmp = instrList.remove(instrList.size() - 1);
             if (tmp instanceof Binary) {
                 ++minus;
             } else if (tmp instanceof Load) {
@@ -166,31 +155,8 @@ public class FuncDef extends IRStatement {
         return ifAndLoopOrder.peek();
     }
 
-    public void collectPhi() {
-        String nowLabel = null;
-        Stack<String> labelStack = new Stack<>();
-        Stack<Phi> phiStack = new Stack<>();
-        for (var instr : irList) {
-            if (instr instanceof Label) {
-                nowLabel = ((Label) instr).labelName;
-            } else if (instr instanceof Br) {
-                ((Br) instr).nowLabel = "%" + nowLabel;
-                phiMap.put(nowLabel, new PhiInfo((Br) instr));
-            } else if (instr instanceof Phi) {
-                labelStack.push(nowLabel);
-                phiStack.push((Phi) instr);
-            }
-        }
-        while (!phiStack.isEmpty()) {
-            var phi = phiStack.pop();
-            label = labelStack.pop();
-            for (var assignBlock : phi.assignBlockList) {
-                PhiInfo phiInfo = phiMap.get(assignBlock.label.substring(1));
-                if (phiInfo != null) {
-                    phiInfo.push(assignBlock.variable.varName, phi.result, assignBlock.variable.varValue, label);
-                }
-            }
-        }
+    public String nowLabel() {
+        return "%" + irList.get(irList.size() - 1).label;
     }
 
 }

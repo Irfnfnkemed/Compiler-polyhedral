@@ -1,5 +1,6 @@
 package src.IR;
 
+import src.IR.instruction.Block;
 import src.IR.instruction.Instruction;
 import src.IR.statement.FuncDef;
 import src.Util.cell.Cell;
@@ -57,5 +58,9 @@ public class Exp extends IRNode {
 
     public void push(Instruction instruction) {
         funcDef.push(instruction);
+    }
+
+    public void pushBlock(Block block) {
+        funcDef.pushBlock(block);
     }
 }

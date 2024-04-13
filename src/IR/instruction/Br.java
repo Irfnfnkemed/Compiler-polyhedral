@@ -12,7 +12,7 @@ public class Br extends Instruction {
     public Br(String toLabel_, FuncDef funcDef_) {
         trueLabel = toLabel_;
         funcDef = funcDef_;
-        nowLabel = funcDef_.label;
+        nowLabel = funcDef_.nowLabel();
     }
 
     public Br(String condition_, String trueLabel_, String falseLabel_,FuncDef funcDef_) {
@@ -20,6 +20,6 @@ public class Br extends Instruction {
         trueLabel = trueLabel_;
         falseLabel = falseLabel_;
         funcDef= funcDef_;
-        nowLabel = funcDef_.label;
+        nowLabel = funcDef_.nowLabel();
     }
 }

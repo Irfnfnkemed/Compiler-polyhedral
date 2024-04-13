@@ -19,6 +19,7 @@ import java.io.PrintStream;
 import java.util.Scanner;
 
 //import static test.TestIR.testIR;
+import static test.TestIR.testIR;
 import static test.TestSemantic.testSemantic;
 
 
@@ -49,7 +50,7 @@ public class Main {
             System.err.println(errors.toString());
         }
         //testSemantic();
-        //testIR();
+        testIR();
     }
 }
 

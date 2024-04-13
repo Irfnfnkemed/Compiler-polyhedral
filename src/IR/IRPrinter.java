@@ -136,39 +136,40 @@ public class IRPrinter {
         System.out.print(" }\n");
     }
 
+    public void print(Block block) {
+        printOut(block.label, ":\n");
+        block.instrList.forEach(this::print);
+    }
+
     private void print(Instruction instruction) {
-        if (instruction instanceof Label) {
-            print((Label) instruction);
-        } else {
-            System.out.print("    ");
-            if (instruction instanceof Alloca) {
-                print((Alloca) instruction);
-            } else if (instruction instanceof Store) {
-                print((Store) instruction);
-            } else if (instruction instanceof Load) {
-                print((Load) instruction);
-            } else if (instruction instanceof Binary) {
-                print((Binary) instruction);
-            } else if (instruction instanceof Icmp) {
-                print((Icmp) instruction);
-            } else if (instruction instanceof Call) {
-                print((Call) instruction);
-            } else if (instruction instanceof Br) {
-                print((Br) instruction);
-            } else if (instruction instanceof Getelementptr) {
-                print((Getelementptr) instruction);
-            } else if (instruction instanceof Phi) {
-                print((Phi) instruction);
-            } else if (instruction instanceof Ret) {
-                print((Ret) instruction);
-            }
+        System.out.print("    ");
+        if (instruction instanceof Alloca) {
+            print((Alloca) instruction);
+        } else if (instruction instanceof Store) {
+            print((Store) instruction);
+        } else if (instruction instanceof Load) {
+            print((Load) instruction);
+        } else if (instruction instanceof Binary) {
+            print((Binary) instruction);
+        } else if (instruction instanceof Icmp) {
+            print((Icmp) instruction);
+        } else if (instruction instanceof Call) {
+            print((Call) instruction);
+        } else if (instruction instanceof Br) {
+            print((Br) instruction);
+        } else if (instruction instanceof Getelementptr) {
+            print((Getelementptr) instruction);
+        } else if (instruction instanceof Phi) {
+            print((Phi) instruction);
+        } else if (instruction instanceof Ret) {
+            print((Ret) instruction);
         }
     }
 
-    public void print(Label label) {
-        System.out.print(label.labelName);
-        System.out.print(":\n");
-    }
+//    public void print(Label label) {
+//        System.out.print(label.labelName);
+//        System.out.print(":\n");
+//    }
 
     public void print(Alloca alloca) {
         printOut(alloca.varName, " = alloca ");
@@ -200,9 +201,9 @@ public class IRPrinter {
         printOut(icmp.output, " = icmp ", icmp.cond, " ");
         printType(icmp.irType);
         System.out.print(" ");
-        printCell(new IRType().setI32(), icmp.left);
+        printCell(icmp.irType, icmp.left);
         System.out.print(", ");
-        printCell(new IRType().setI32(), icmp.right);
+        printCell(icmp.irType, icmp.right);
         System.out.print('\n');
     }
 
