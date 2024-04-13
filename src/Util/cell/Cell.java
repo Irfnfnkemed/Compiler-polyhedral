@@ -7,7 +7,7 @@ public class Cell {
 
     public Cell set(String varName_) {
         varName = varName_;
-        isConst = false;
+        isConst = varName == null;
         return this;
     }
 

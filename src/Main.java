@@ -8,6 +8,7 @@ import src.IR.IRBuilder;
 import src.IR.IRPrinter;
 import src.Util.error.Errors;
 import src.Util.error.ParserErrorListener;
+import src.optimize.Mem2Reg.Mem2Reg;
 import src.parser.MxLexer;
 import src.parser.MxParser;
 import src.semantic.Semantic;
@@ -46,11 +47,16 @@ public class Main {
             PrintStream printStream = new PrintStream(fileOutputStream);
             System.setOut(printStream);
             irPrint.print();
+            Mem2Reg mem2Reg = new Mem2Reg(ir.irProgram);
+            fileOutputStream = new FileOutputStream("./src/builtin/test_mem2reg.ll");
+            printStream = new PrintStream(fileOutputStream);
+            System.setOut(printStream);
+            irPrint.print();
         } catch (Errors errors) {
             System.err.println(errors.toString());
         }
         //testSemantic();
-        testIR();
+        //testIR();
     }
 }
 
