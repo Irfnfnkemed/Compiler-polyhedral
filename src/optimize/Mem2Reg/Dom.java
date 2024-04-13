@@ -39,10 +39,10 @@ public class Dom {
 
     public Dom(CFGDom cfgDom_, String entryLabel_) {
         cfgDom = cfgDom_;
-        if (cfgDom.funcBlocks.containsKey(entryLabel_)) {
+        if (cfgDom.funcBlockDoms.containsKey(entryLabel_)) {
             entryLabel = entryLabel_;
         } else {
-            for (var entry : cfgDom.funcBlocks.entrySet()) {
+            for (var entry : cfgDom.funcBlockDoms.entrySet()) {
                 if (entry.getValue().pre == 0) {
                     entryLabel = entry.getKey();
                     cfgDom.retLabel = entryLabel;
@@ -71,11 +71,11 @@ public class Dom {
     }
 
     public void DFS(DomInfo domInfo) {
-        BlockDom blockDom = cfgDom.funcBlocks.get(domInfo.blockName);
+        BlockDom blockDom = cfgDom.funcBlockDoms.get(domInfo.blockName);
         for (int i = 0; i < blockDom.suc; ++i) {
-            if (!domMap.containsKey(blockDom.next.get(i).label)) {
-                DomInfo nextDomInfo = new DomInfo(blockDom.next.get(i).label, domInfo);
-                domMap.put(blockDom.next.get(i).label, nextDomInfo);
+            if (!domMap.containsKey(blockDom.next.get(i).block.label)) {
+                DomInfo nextDomInfo = new DomInfo(blockDom.next.get(i).block.label, domInfo);
+                domMap.put(blockDom.next.get(i).block.label, nextDomInfo);
                 DFS(nextDomInfo);
             }
         }
@@ -102,9 +102,9 @@ public class Dom {
         DomInfo nowDom, tmpDom;
         for (int i = dfnList.size() - 1; i > 0; --i) {//逆dfn序
             nowDom = dfnList.get(i);
-            nowBlockDom = cfgDom.funcBlocks.get(nowDom.blockName);
+            nowBlockDom = cfgDom.funcBlockDoms.get(nowDom.blockName);
             for (var preBlock : nowBlockDom.prev) {//求半支配节点
-                tmpDom = domMap.get(preBlock.label);
+                tmpDom = domMap.get(preBlock.block.label);
                 if (tmpDom.dfn < nowDom.dfn) {
                     if (tmpDom.semiDom.dfn < nowDom.semiDom.dfn) {
                         nowDom.semiDom = tmpDom.semiDom;
@@ -138,11 +138,11 @@ public class Dom {
         BlockDom nowBlockDom;
         DomInfo domInfoPre, domInfoNow;
         for (var entry : domMap.entrySet()) {
-            nowBlockDom = cfgDom.funcBlocks.get(entry.getKey());
+            nowBlockDom = cfgDom.funcBlockDoms.get(entry.getKey());
             domInfoNow = domMap.get(entry.getKey());
             if (nowBlockDom.pre > 1) {//汇合点
                 for (var preBlock : nowBlockDom.prev) {
-                    domInfoPre = domMap.get(preBlock.label);
+                    domInfoPre = domMap.get(preBlock.block.label);
                     while (domInfoPre != entry.getValue().immeDom) {
                         domMap.get(domInfoPre.blockName).domFrontier.add(domInfoNow.blockName);
                         domInfoPre = domInfoPre.immeDom;

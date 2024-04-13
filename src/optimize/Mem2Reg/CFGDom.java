@@ -8,7 +8,7 @@ import java.util.*;
 
 public class CFGDom {
 
-    public HashMap<String, BlockDom> funcBlocks;//块名->Block节点
+    public HashMap<String, BlockDom> funcBlockDoms;//块名->Block节点
     public HashMap<String, List<String>> allocaVar;//alloca的变量，变量名->def的块名列表
     public HashMap<String, IRType> allocaVarType;//alloca的变量名->类型
     public boolean change = false;//控制流发生改变
@@ -16,41 +16,43 @@ public class CFGDom {
     public FuncDef funcDef;
     public String retLabel;
 
-    public CFGDom(FuncDef funcDef_) {
+    public CFGDom(FuncDef funcDef_, boolean isAlloca) {
         funcDef = funcDef_;
-        funcBlocks = new HashMap<>();
+        funcBlockDoms = new HashMap<>();
         allocaVar = new HashMap<>();
         allocaVarType = new HashMap<>();
-        buildCFG();
+        buildCFG(isAlloca);
         eliminateBlock();
     }
 
-    public void buildCFG() {
+    public void buildCFG(boolean isAlloca) {
+        for (var block : funcDef.irList) {
+            funcBlockDoms.put(block.label, new BlockDom(block));
+        }
         for (var block : funcDef.irList) {//建图
-            var nowBlockDomDom = funcBlocks.computeIfAbsent(block.label, k -> new BlockDom(block.label));
-            for (Instruction instr : block.instrList) {
-                nowBlockDomDom.pushIR(instr);
-                if (instr instanceof Alloca) {//收集alloca信息
-                    allocaVar.put(((Alloca) instr).varName, new ArrayList<>());
-                    allocaVarType.put(((Alloca) instr).varName, ((Alloca) instr).irType);
-                } else if (instr instanceof Store) {
-                    if (allocaVar.containsKey(((Store) instr).toPointer)) {
-                        var defList = allocaVar.get(((Store) instr).toPointer);
-                        if (defList.isEmpty() || !Objects.equals(defList.get(defList.size() - 1), nowBlockDomDom.label)) {
-                            allocaVar.get(((Store) instr).toPointer).add(nowBlockDomDom.label);
+            var nowBlockDomDom = funcBlockDoms.get(block.label);
+            if (isAlloca) {
+                for (Instruction instr : block.instrList) {
+                    if (instr instanceof Alloca) {//收集alloca信息
+                        allocaVar.put(((Alloca) instr).varName, new ArrayList<>());
+                        allocaVarType.put(((Alloca) instr).varName, ((Alloca) instr).irType);
+                    } else if (instr instanceof Store) {
+                        if (allocaVar.containsKey(((Store) instr).toPointer)) {
+                            var defList = allocaVar.get(((Store) instr).toPointer);
+                            if (defList.isEmpty() || !Objects.equals(defList.get(defList.size() - 1), nowBlockDomDom.block.label)) {
+                                allocaVar.get(((Store) instr).toPointer).add(nowBlockDomDom.block.label);
+                            }
                         }
                     }
                 }
             }
             Instruction endInstr = block.instrList.get(block.instrList.size() - 1);
             if (endInstr instanceof Br) {
-                var nextBlock = funcBlocks.computeIfAbsent(((Br) endInstr).trueLabel.substring(1),
-                        k -> new BlockDom(((Br) endInstr).trueLabel.substring(1)));
+                var nextBlock = funcBlockDoms.get(((Br) endInstr).trueLabel.substring(1));
                 nextBlock.setPre(nowBlockDomDom);
                 nowBlockDomDom.setSuc(nextBlock);
                 if (((Br) endInstr).condition != null) {
-                    nextBlock = funcBlocks.computeIfAbsent(((Br) endInstr).falseLabel.substring(1),
-                            k -> new BlockDom(((Br) endInstr).falseLabel.substring(1)));
+                    nextBlock = funcBlockDoms.get(((Br) endInstr).falseLabel.substring(1));
                     nowBlockDomDom.setSuc(nextBlock);
                     nextBlock.setPre(nowBlockDomDom);
                 }
@@ -62,7 +64,7 @@ public class CFGDom {
 
     public void eliminateBlock() {
         Queue<BlockDom> queue = new ArrayDeque<>();
-        queue.add(funcBlocks.get("entry"));
+        queue.add(funcBlockDoms.get("entry"));
         BlockDom blockDom;
         while (!queue.isEmpty()) {//BFS
             blockDom = queue.poll();
@@ -73,7 +75,7 @@ public class CFGDom {
                 }
             }
         }
-        var iterator = funcBlocks.values().iterator();
+        var iterator = funcBlockDoms.values().iterator();
         while (iterator.hasNext()) {//初步消除死块
             var entry = iterator.next();
             if (!(entry).visited) {
@@ -87,7 +89,7 @@ public class CFGDom {
                         }
                     }
                 }
-                if (Objects.equals(entry.label, retLabel)) {
+                if (Objects.equals(entry.block.label, retLabel)) {
                     noReturn = true;
                 }
                 iterator.remove();
@@ -96,10 +98,10 @@ public class CFGDom {
         }
     }
 
-    public void inverse() {//建立反图
-        for (BlockDom blockDom : funcBlocks.values()) {
-            blockDom.setInverse();
-        }
-    }
+//    public void inverse() {//建立反图
+//        for (BlockDom blockDom : funcBlockDoms.values()) {
+//            blockDom.setInverse();
+//        }
+//    }
 
 }

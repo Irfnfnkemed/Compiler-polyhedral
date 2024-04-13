@@ -79,13 +79,13 @@ public class PutPhi {
             var defList = entry.getValue();
             defLabelSet.addAll(defList);
             while (index < defList.size()) {
-                if (!cfgDom.funcBlocks.containsKey(defList.get(index))) {
+                if (!cfgDom.funcBlockDoms.containsKey(defList.get(index))) {
                     ++index;
                     continue;
                 }
                 for (String putBlockLabel : dom.domMap.get(defList.get(index)).domFrontier) {
-                    if (!(cfgDom.funcBlocks.get(putBlockLabel)).insertPhi.containsKey(varName)) {
-                        (cfgDom.funcBlocks.get(putBlockLabel)).insertPhi.put(
+                    if (!(cfgDom.funcBlockDoms.get(putBlockLabel)).insertPhi.containsKey(varName)) {
+                        (cfgDom.funcBlockDoms.get(putBlockLabel)).insertPhi.put(
                                 varName, new Phi(cfgDom.allocaVarType.get(varName), varName + "-" + putBlockLabel));
                     }
                     if (!defLabelSet.contains(putBlockLabel)) {
@@ -99,7 +99,7 @@ public class PutPhi {
     }
 
     public void rename() {
-        BlockDom root = cfgDom.funcBlocks.get("entry");
+        BlockDom root = cfgDom.funcBlockDoms.get("entry");
         renameBlockStack.push(new renameBlockPara(root, null, null, 0));
         while (!renameBlockStack.isEmpty()) {
             var para = renameBlockStack.peek();
@@ -107,7 +107,7 @@ public class PutPhi {
                 var restoreStack = renameBlock(para.blockDom, para.fromLabel);
                 if (para.blockDom.suc > 0 && restoreStack != null) {
                     para.restoreStack = restoreStack;
-                    renameBlockStack.push(new renameBlockPara(para.blockDom.next.get(para.i++), para.blockDom.label, restoreStack, 0));
+                    renameBlockStack.push(new renameBlockPara(para.blockDom.next.get(para.i++), para.blockDom.block.label, restoreStack, 0));
                 } else {
                     renameBlockStack.pop();
                 }
@@ -124,7 +124,7 @@ public class PutPhi {
                     }
                 }
                 if (para.i < para.blockDom.suc) {
-                    renameBlockStack.push(new renameBlockPara(para.blockDom.next.get(para.i++), para.blockDom.label, null, 0));
+                    renameBlockStack.push(new renameBlockPara(para.blockDom.next.get(para.i++), para.blockDom.block.label, null, 0));
                 } else {
                     renameBlockStack.pop();
                 }
@@ -152,16 +152,16 @@ public class PutPhi {
             }
         }
         variable tmpVar;
-        for (var inst : blockDom.instructionList) {
+        for (var inst : blockDom.block.instrList) {
             if (inst instanceof Phi) {
                 if (((Phi) inst).assignBlockList.size() > blockDom.pre) {
                     for (int j = 0; j < ((Phi) inst).assignBlockList.size(); ++j) {
                         boolean flag = true;
-                        if (!cfgDom.funcBlocks.containsKey(((Phi) inst).assignBlockList.get(j).label.substring(1))) {
+                        if (!cfgDom.funcBlockDoms.containsKey(((Phi) inst).assignBlockList.get(j).label.substring(1))) {
                             flag = false;
                         } else {
                             for (var preBlock : blockDom.prev) {
-                                if (Objects.equals(preBlock.label, ((Phi) inst).assignBlockList.get(j).label.substring(1))) {
+                                if (Objects.equals(preBlock.block.label, ((Phi) inst).assignBlockList.get(j).label.substring(1))) {
                                     flag = false;
                                     break;
                                 }
@@ -300,7 +300,6 @@ public class PutPhi {
                     if (tmpVar != null) {
                         ((Getelementptr) inst).from = tmpVar.var.varName;
                     }
-                    int x = 7;
                 } else if (inst instanceof Ret) {
                     if (((Ret) inst).retVar != null && !((Ret) inst).retVar.isConst) {
                         tmpVar = replace.get(((Ret) inst).retVar.varName);
@@ -326,7 +325,7 @@ public class PutPhi {
         BlockDom nowBlockDom;
         Instruction instruction;
         for (var block : funcDef.irList) {
-            nowBlockDom = cfgDom.funcBlocks.get(block.label);
+            nowBlockDom = cfgDom.funcBlockDoms.get(block.label);
             if (nowBlockDom == null) {
                 continue;//移除死块
             }
@@ -338,7 +337,7 @@ public class PutPhi {
                         var assign = phi.assignBlockList.get(j);
                         boolean flag = true;
                         for (var preBlock : nowBlockDom.prev) {//确认phi来源的标签存在
-                            if (assign.label.substring(1).equals(preBlock.label)) {
+                            if (assign.label.substring(1).equals(preBlock.block.label)) {
                                 flag = false;
                                 break;
                             }
@@ -352,8 +351,8 @@ public class PutPhi {
                     }
                 }
             }
-            for (int j = 0; j < nowBlockDom.instructionList.size(); ++j) {
-                instruction = nowBlockDom.instructionList.get(j);
+            for (int j = 0; j < nowBlockDom.block.instrList.size(); ++j) {
+                instruction = nowBlockDom.block.instrList.get(j);
                 if ((instruction instanceof Load && ((Load) instruction).toVarName == null) ||
                         (instruction instanceof Store && ((Store) instruction).toPointer == null) ||
                         (instruction instanceof Binary && ((Binary) instruction).output == null) ||
@@ -368,7 +367,7 @@ public class PutPhi {
                             var assign = ((Phi) instruction).assignBlockList.get(k);
                             boolean flag = true;
                             for (var preBlock : nowBlockDom.prev) {//确认phi来源的标签存在
-                                if (assign.label.substring(1).equals(preBlock.label)) {
+                                if (assign.label.substring(1).equals(preBlock.block.label)) {
                                     flag = false;
                                     break;
                                 }

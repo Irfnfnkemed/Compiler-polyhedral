@@ -1,5 +1,6 @@
 package src.optimize.Mem2Reg;
 
+import src.IR.instruction.Block;
 import src.IR.instruction.Instruction;
 import src.IR.instruction.Phi;
 
@@ -8,8 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class BlockDom {
-    public List<Instruction> instructionList;
-    public String label;
+    public Block block;
     public List<BlockDom> next;
     public List<BlockDom> prev;
     public int pre = 0, suc = 0;//前驱、后继个数
@@ -17,16 +17,11 @@ public class BlockDom {
     public boolean renamed = false;//是否已经重命名过各操作
     public boolean visited = false;//用于建图时消除死块
 
-    public BlockDom(String label_) {
-        label = label_;
-        instructionList = new ArrayList<>();
+    public BlockDom(Block block_) {
+        block = block_;
         next = new ArrayList<>();
         prev = new ArrayList<>();
         insertPhi = new HashMap<>();
-    }
-
-    public void pushIR(Instruction instruction) {
-        instructionList.add(instruction);
     }
 
     public void setPre(BlockDom preBlockDom) {
@@ -39,14 +34,14 @@ public class BlockDom {
         ++suc;
     }
 
-    public void setInverse() {
-        int tmp = suc;
-        suc = pre;
-        pre = tmp;
-        List<BlockDom> tmpList = new ArrayList<>(next);
-        next.clear();
-        next.addAll(prev);
-        prev.clear();
-        prev.addAll(tmpList);
-    }
+//    public void setInverse() {
+//        int tmp = suc;
+//        suc = pre;
+//        pre = tmp;
+//        List<BlockDom> tmpList = new ArrayList<>(next);
+//        next.clear();
+//        next.addAll(prev);
+//        prev.clear();
+//        prev.addAll(tmpList);
+//    }
 }
