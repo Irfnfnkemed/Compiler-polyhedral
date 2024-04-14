@@ -11,6 +11,10 @@ public class ADCE {
 
     public ADCE(IRProgram irProgram_) {
         irProgram = irProgram_;
+    }
+
+
+    public void optimize() {
         for (var stmt : irProgram.stmtList) {
             if (stmt instanceof FuncDef) {
                 CFGDom cfg = new CFGDom((FuncDef) stmt, false);
@@ -23,8 +27,8 @@ public class ADCE {
                 cfg.inverse();
                 Dom dom = new Dom(cfg, cfg.retLabel);
                 FunctionADCE functionADCE = new FunctionADCE(dom);
+                functionADCE.optimize();
             }
         }
     }
-
 }

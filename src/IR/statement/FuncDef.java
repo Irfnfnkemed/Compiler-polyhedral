@@ -19,38 +19,6 @@ public class FuncDef extends IRStatement {
         public boolean jump = false;
     }
 
-    public static class PhiInfo {//用于处理关于phi的变量
-
-        public static class PhiBlock {
-            public String fromVar, toVar;
-            public long value;
-
-            public PhiBlock(String fromVar_, String toVar_, long value_) {
-                fromVar = fromVar_;
-                toVar = toVar_;
-                value = value_;
-            }
-        }
-
-        public List<PhiBlock> phiTrueList;//节点到跳转目标块(true跳转)，所有需要赋值的phi
-        public List<PhiBlock> phiFalseList;//节点到跳转目标块(false跳转)，所有需要赋值的phi
-        public Br br;
-
-        public PhiInfo(Br br_) {
-            phiTrueList = new ArrayList<>();
-            phiFalseList = new ArrayList<>();
-            br = br_;
-        }
-
-        public void push(String fromVar_, String toVar_, long value_, String label_) {
-            if (Objects.equals(label_, br.trueLabel.substring(1))) {
-                phiTrueList.add(new PhiBlock(fromVar_, toVar_, value_));
-            } else {
-                phiFalseList.add(new PhiBlock(fromVar_, toVar_, value_));
-            }
-        }
-    }
-
     public IRType irType;
     public String functionName;
     public List<IRType> parameterTypeList;
@@ -64,7 +32,6 @@ public class FuncDef extends IRStatement {
     public boolean notReturn = true;
     public boolean isClassMethod = false;
     public int maxCallPara = -1;
-    public HashMap<String, PhiInfo> phiMap;//phi指令，跳转来源标签->目标标签及赋值语段，便于汇编处理
     public List<Alloca> allocaList;
     public List<Call> initList;
 
@@ -75,7 +42,6 @@ public class FuncDef extends IRStatement {
         ifStatusStack = new Stack<>();
         loopStatusStack = new Stack<>();
         ifAndLoopOrder = new Stack<>();
-        phiMap = new HashMap<>();
         allocaList = new ArrayList<>();
         initList = new ArrayList<>();
     }

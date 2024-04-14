@@ -10,8 +10,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Mem2Reg {
+    private final IRProgram irProgram;
 
-    public Mem2Reg(IRProgram irProgram) {
+    public Mem2Reg(IRProgram irProgram_) {
+        irProgram = irProgram_;
+    }
+
+    public void optimize() {
         for (var stmt : irProgram.stmtList) {
             if (stmt instanceof FuncDef) {
                 boolean isAlloca = true;

@@ -25,6 +25,9 @@ public class FunctionADCE {
         blockBr = new HashMap<>();
         dom = dom_;
         funcDef = dom_.cfgDom.funcDef;
+    }
+
+    public void optimize() {
         setDefAndActive();
         setBrDom();
         markActive();
