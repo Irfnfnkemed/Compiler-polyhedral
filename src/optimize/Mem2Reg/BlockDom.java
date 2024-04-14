@@ -34,14 +34,14 @@ public class BlockDom {
         ++suc;
     }
 
-//    public void setInverse() {
-//        int tmp = suc;
-//        suc = pre;
-//        pre = tmp;
-//        List<BlockDom> tmpList = new ArrayList<>(next);
-//        next.clear();
-//        next.addAll(prev);
-//        prev.clear();
-//        prev.addAll(tmpList);
-//    }
+    public void setInverse() {
+        int tmp = suc;
+        suc = pre;
+        pre = tmp;
+        List<BlockDom> tmpList = new ArrayList<>(next);
+        next.clear();
+        next.addAll(prev);
+        prev.clear();
+        prev.addAll(tmpList);
+    }
 }

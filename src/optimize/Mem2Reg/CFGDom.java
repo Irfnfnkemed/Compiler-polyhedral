@@ -96,12 +96,15 @@ public class CFGDom {
                 change = true;
             }
         }
+        if (retLabel == null) {
+            noReturn = true;
+        }
     }
 
-//    public void inverse() {//建立反图
-//        for (BlockDom blockDom : funcBlockDoms.values()) {
-//            blockDom.setInverse();
-//        }
-//    }
+    public void inverse() {//建立反图
+        for (BlockDom blockDom : funcBlockDoms.values()) {
+            blockDom.setInverse();
+        }
+    }
 
 }
