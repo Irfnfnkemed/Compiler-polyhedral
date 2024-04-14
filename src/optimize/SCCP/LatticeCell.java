@@ -23,13 +23,6 @@ public class LatticeCell {
         init(value_);
     }
 
-    public LatticeCell(Cell cell_) {
-        if (cell_.isConst) {
-            init(cell_.varValue);
-        } else {
-            init(cell_.varName);
-        }
-    }
 
     void init(String varNew_) {
         if (varNew_.charAt(0) == '@') {

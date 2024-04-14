@@ -293,7 +293,7 @@ public class PutPhi {
                     if (!((Getelementptr) inst).index.isConst) {
                         tmpVar = replace.get(((Getelementptr) inst).index.varName);
                         if (tmpVar != null) {
-                            ((Getelementptr) inst).index.set(tmpVar.var.varName);
+                            ((Getelementptr) inst).index.set(tmpVar.var);
                         }
                     }
                     tmpVar = replace.get(((Getelementptr) inst).from);

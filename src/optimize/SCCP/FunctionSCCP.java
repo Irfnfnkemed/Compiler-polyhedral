@@ -146,8 +146,10 @@ public class FunctionSCCP {
         var lattice = findLattice(phi.result);
         boolean flag = false;
         for (var assign : phi.assignBlockList) {
-            if (lattice.update(findLattice(assign.variable))) {
-                flag = true;
+            if (blockVisited.contains(assign.label.substring(1))) {
+                if (lattice.update(findLattice(assign.variable))) {
+                    flag = true;
+                }
             }
         }
         if (flag) {
