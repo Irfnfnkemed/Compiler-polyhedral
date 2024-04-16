@@ -9,6 +9,12 @@ public class Store extends Instruction {
     public Cell value;
     public String toPointer;
 
+    public Store(Store store) {
+        irType = new IRType(store.irType);
+        value = new Cell().set(store.value);
+        toPointer = store.toPointer;
+    }
+
     public Store(Type type_, Cell valueVar_, String toPointer_) {
         if (valueVar_.isConst) {
             init(new IRType(type_), valueVar_.varValue, toPointer_);

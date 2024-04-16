@@ -26,6 +26,13 @@ public class Binary extends Instruction {
         }
     }
 
+    public Binary(Binary binary) {
+        left = new Cell().set(binary.left);
+        right = new Cell().set(binary.right);
+        op = binary.op;
+        output = binary.output;
+    }
+
     public void set(Cell cell) {
         if (cell.isConst) {
             set(cell.varValue);

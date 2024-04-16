@@ -3,7 +3,7 @@ package src.optimize.RegAllocation;
 import src.ASM.ASMBuilder;
 import src.ASM.instruction.*;
 import src.ASM.instruction.binaryImme.ADDI;
-import src.optimize.Inline.Inline;
+import src.optimize.Inline.ASMInline.ASMInline;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -13,10 +13,10 @@ import java.util.Objects;
 
 public class RegAllocation {
     public HashMap<String, Function> functions;
-    public Inline inline;
+    public ASMInline ASMInline;
 
     public RegAllocation(ASMBuilder asmBuilder) throws InvocationTargetException, InstantiationException, IllegalAccessException, NoSuchMethodException {
-        inline = new Inline();
+        ASMInline = new ASMInline();
         functions = new HashMap<>();
         HashMap<String, List<ASMInstr>> ASMInstrMap = new HashMap<>();
         for (var instrList : asmBuilder.asmProgram.sectionText.asmInstrList) {
@@ -29,9 +29,9 @@ public class RegAllocation {
             Function function = new Function(list, asmBuilder.globalVar);
             if (function.graphColor.used.size() < 15 && function.asmInstrList.size() < 20000) {
                 var funcNode = asmBuilder.getNode(funcName);
-                inline.changeParaAndRet((Init) list.get(1));
+                ASMInline.changeParaAndRet((Init) list.get(1));
                 for (CALL call : funcNode.callList) {
-                    inline.inline(call, list);
+                    ASMInline.inline(call, list);
                 }
                 for (var fromNode : funcNode.fromNode) {
                     fromNode.toNode.remove(funcNode);
@@ -144,8 +144,8 @@ public class RegAllocation {
     public List<ASMInstr> mergeADDI(List<ASMInstr> asmInstrList) {
         List<ASMInstr> newASMInstrList = new ArrayList<>();
         ASMInstr now = null, pre = null;
-        for (int i = 0; i < asmInstrList.size(); ++i) {
-            now = asmInstrList.get(i);
+        for (ASMInstr asmInstr : asmInstrList) {
+            now = asmInstr;
             if (pre instanceof ADDI && now instanceof ADDI && Objects.equals(((ADDI) now).from, ((ADDI) now).to) &&
                     Objects.equals(((ADDI) pre).to, ((ADDI) now).to)) {
                 ((ADDI) pre).imme += ((ADDI) now).imme;

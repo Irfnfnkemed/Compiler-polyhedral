@@ -10,6 +10,14 @@ public class Getelementptr extends Instruction {
     public Cell index;
     public int offset = -1;
 
+    public Getelementptr(Getelementptr getelementptr) {
+        result = getelementptr.result;
+        irType = new IRType(getelementptr.irType);
+        from = getelementptr.from;
+        index = new Cell().set(getelementptr.index);
+        offset = getelementptr.offset;
+    }
+
     public Getelementptr(String result_, IRType irType_, String from_, int offset_, String index_) {
         init(result_, irType_, from_, offset_);
         index = new Cell().set(index_);
@@ -24,6 +32,7 @@ public class Getelementptr extends Instruction {
         init(result_, irType_, from_, offset_);
         index = new Cell().set(index_);
     }
+
     private void init(String result_, IRType irType_, String from_, int offset_) {
         result = result_;
         irType = irType_;

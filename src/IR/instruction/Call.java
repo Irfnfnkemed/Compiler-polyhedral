@@ -15,6 +15,16 @@ public class Call extends Instruction {
     public List<Cell> callList;
     public String resultVar;
 
+    public Call(Call call) {
+        irType = new IRType(call.irType);
+        functionName = call.functionName;
+        callTypeList = new ArrayList<>();
+        callList = new ArrayList<>();
+        call.callTypeList.forEach(irType_ -> callTypeList.add(new IRType(irType_)));
+        call.callList.forEach(cell_ -> callList.add(new Cell().set(cell_)));
+        resultVar = call.resultVar;
+    }
+
     public Call(String functionName_) {
         functionName = functionName_;
         callTypeList = new ArrayList<>();

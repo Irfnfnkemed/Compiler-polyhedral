@@ -30,6 +30,7 @@ src/builtin/test.ll
 src/builtin/test.s
 src/builtin/test_standard.ll
 src/builtin/test_mem2reg.ll
+src/builtin/test_inline.ll
 *.s
 .idea
 out

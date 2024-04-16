@@ -29,6 +29,12 @@ public class IRType {
         }
     }
 
+    public IRType(IRType irType) {
+        unitName = irType.unitName;
+        unitSize = irType.unitSize;
+        isArray = irType.isArray;
+    }
+
     public IRType() {
     }
 

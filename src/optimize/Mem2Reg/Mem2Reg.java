@@ -37,7 +37,7 @@ public class Mem2Reg {
         }
     }
 
-    public void merge(FuncDef funcDef, CFGDom cfg) {
+    public static void merge(FuncDef funcDef, CFGDom cfg) {
         List<Block> newIrList = new ArrayList<>();
         for (var block : funcDef.irList) {
             var domBlock = cfg.funcBlockDoms.get(block.label);

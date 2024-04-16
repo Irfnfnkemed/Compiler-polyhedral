@@ -11,6 +11,11 @@ public class Phi extends Instruction {
         public Cell variable;
         public String label;
 
+        public assignBlock(assignBlock assignBlock_) {
+            variable = new Cell().set(assignBlock_.variable);
+            label = assignBlock_.label;
+        }
+
         public assignBlock(String var_, String label_) {
             variable = new Cell().set(var_);
             label = label_;
@@ -31,6 +36,13 @@ public class Phi extends Instruction {
     public IRType irType;
     public String result;
     public List<assignBlock> assignBlockList;
+
+    public Phi(Phi phi) {
+        irType = new IRType(phi.irType);
+        result = phi.result;
+        assignBlockList = new ArrayList<>();
+        phi.assignBlockList.forEach(assignBlock_ -> assignBlockList.add(new assignBlock(assignBlock_)));
+    }
 
     public Phi(IRType irType_, String result_) {
         irType = irType_;

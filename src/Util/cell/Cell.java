@@ -5,6 +5,10 @@ public class Cell {
     public long varValue;
     public boolean isConst = true;
 
+    public Cell() {
+    }
+
+
     public Cell set(String varName_) {
         varName = varName_;
         isConst = varName == null;

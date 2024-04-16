@@ -14,7 +14,7 @@ public class GraphColor {
             "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11"
     };
 
-    final HashMap<String, Integer> regId = new HashMap<String, Integer>() {{
+    final HashMap<String, Integer> regId = new HashMap<>() {{
         put("t0", 1);
         put("t2", 1 << 1);
         put("t3", 1 << 2);
@@ -488,11 +488,16 @@ public class GraphColor {
                     ((LI) instr).to = "cnt" + cnt++;
                 }
             } else if (instr instanceof LW) {
-                Integer from = stack.get(((LW) instr).to), to = stack.get(((LW) instr).to);
-                newList.add(instr);
+                Integer from = stack.get(((LW) instr).from), to = stack.get(((LW) instr).to);
                 if (from != null) {
                     instr.visited = false;
-                    newList.add(new SW("cnt" + cnt, "stack#", from));
+                    newList.add(new LW("stack#", "cnt" + cnt, from));
+                    ((LW) instr).from = "cnt" + cnt++;
+                }
+                newList.add(instr);
+                if (to != null) {
+                    instr.visited = false;
+                    newList.add(new SW("cnt" + cnt, "stack#", to));
                     ((LW) instr).to = "cnt" + cnt++;
                 }
             } else if (instr instanceof SW) {

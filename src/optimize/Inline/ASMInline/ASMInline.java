@@ -1,4 +1,4 @@
-package src.optimize.Inline;
+package src.optimize.Inline.ASMInline;
 
 import src.ASM.instruction.*;
 import src.ASM.instruction.binary.binBase;

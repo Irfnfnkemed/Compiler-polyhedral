@@ -25,6 +25,14 @@ public class Icmp extends Instruction {
         irType = new IRType(type_);
     }
 
+    public Icmp(Icmp icmp) {
+        left = new Cell().set(icmp.left);
+        right = new Cell().set(icmp.right);
+        cond = icmp.cond;
+        irType = new IRType(icmp.irType);
+        output = icmp.output;
+    }
+
     public Icmp(String cond_, IRType irType_) {
         left = new Cell();
         right = new Cell();
