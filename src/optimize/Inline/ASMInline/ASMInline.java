@@ -11,13 +11,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
-public class Inline {
+public class ASMInline {
     int inline = 0;
     String postFix;
     HashMap<String, String> replace;
     List<String> callPara;
 
-    public Inline() {
+    public ASMInline() {
         replace = new HashMap<>();
         callPara = new ArrayList<>();
     }
