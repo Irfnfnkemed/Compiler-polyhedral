@@ -1,5 +1,6 @@
 package src.optimize.SCCP;
 
+import src.IR.instruction.Instruction;
 import src.Util.cell.Cell;
 
 import static java.lang.Math.min;
@@ -13,6 +14,7 @@ public class LatticeCell {
     public long constValue;
     public String varCopy = null;
     public String varNew = null;
+    public long imme_add = 0, imme_mul = 1;
     public int status;
 
     public LatticeCell(String varNew_) {
@@ -39,13 +41,16 @@ public class LatticeCell {
     }
 
     public boolean update(LatticeCell operand) {
-        int tmp = status;
+        int tmpStatus = status;
+        long tmpAdd = imme_add, tmpMul = imme_mul;
         if (status == UNDEFINED) {
             if (operand.status == CONST) {
                 constValue = operand.constValue;
                 status = CONST;
             } else if (operand.status == UNCERTAIN_COPY) {
                 varCopy = operand.varCopy;
+                imme_add = operand.imme_add;
+                imme_mul = operand.imme_mul;
                 status = UNCERTAIN_COPY;
             } else if (operand.status == UNCERTAIN_NEW) {
                 varCopy = operand.varNew;
@@ -63,20 +68,24 @@ public class LatticeCell {
             if (operand.status == CONST) {
                 status = UNCERTAIN_NEW;
             } else if (operand.status == UNCERTAIN_COPY) {
-                if (!varCopy.equals(operand.varCopy)) {
+                if (!(varCopy.equals(operand.varCopy) && imme_add == operand.imme_add && imme_mul == operand.imme_mul)) {
                     status = UNCERTAIN_NEW;
                 }
             } else if (operand.status == UNCERTAIN_NEW) {
-                if (!varCopy.equals(operand.varNew)) {
+                if (!(varCopy.equals(operand.varNew) && imme_add == 0 && imme_mul == 1)) {
                     status = UNCERTAIN_NEW;
                 }
             }
         }
-        return status != tmp;
+        return status != tmpStatus;
     }
 
     public boolean update(LatticeCell lhs, LatticeCell rhs, String op) {
-        int tmp = status;
+        if (lhs.status == UNDEFINED || rhs.status == UNDEFINED) {
+            return false;//存在未访问的，暂不操作（因为此函数针对binary、icmp，两操作数均需初始化）
+        }
+        int tmpStatus = status;
+        long tmpAdd = imme_add, tmpMul = imme_mul;
         if (lhs.status == CONST && rhs.status == CONST) {
             status = CONST;
             try {
@@ -101,26 +110,95 @@ public class LatticeCell {
             } catch (Exception exception) { //直接计算会抛出错误(除以0，位移负数等)
                 status = UNCERTAIN_NEW;
             }
+        } else if (rhs.status == CONST) {
+            switch (op) {
+                case "add" -> {
+                    status = UNCERTAIN_COPY;
+                    if (lhs.status == UNCERTAIN_COPY) {
+                        varCopy = lhs.varCopy;
+                        imme_mul = lhs.imme_mul;
+                        imme_add = lhs.imme_add + rhs.constValue;
+                    } else {
+                        varCopy = lhs.varNew;
+                        imme_add = rhs.constValue;
+                    }
+                }
+                case "sub" -> {
+                    status = UNCERTAIN_COPY;
+                    if (lhs.status == UNCERTAIN_COPY) {
+                        varCopy = lhs.varCopy;
+                        imme_mul = lhs.imme_mul;
+                        imme_add = lhs.imme_add - rhs.constValue;
+                    } else {
+                        varCopy = lhs.varNew;
+                        imme_add = -rhs.constValue;
+                    }
+                }
+                case "mul" -> {
+                    if (rhs.constValue == 0) {
+                        status = CONST;
+                        constValue = 0;
+                    } else {
+                        if (lhs.status == UNCERTAIN_COPY) {
+                            varCopy = lhs.varCopy;
+                            imme_mul = lhs.imme_mul * rhs.constValue;
+                            imme_add = lhs.imme_add * rhs.constValue;
+                        } else {
+                            varCopy = lhs.varNew;
+                            imme_mul = rhs.constValue;
+                        }
+                        status = UNCERTAIN_COPY;
+                    }
+                }
+                default -> status = UNCERTAIN_NEW;
+            }
+        } else if (lhs.status == CONST) {
+            switch (op) {
+                case "add" -> {
+                    status = UNCERTAIN_COPY;
+                    if (rhs.status == UNCERTAIN_COPY) {
+                        varCopy = rhs.varCopy;
+                        imme_mul = rhs.imme_mul;
+                        imme_add = rhs.imme_add + lhs.constValue;
+                    } else {
+                        varCopy = rhs.varNew;
+                        imme_add = lhs.constValue;
+                    }
+                }
+                case "sub" -> {
+                    status = UNCERTAIN_COPY;
+                    if (rhs.status == UNCERTAIN_COPY) {
+                        varCopy = rhs.varCopy;
+                        imme_mul = -rhs.imme_mul;
+                        imme_add = -rhs.imme_add + lhs.constValue;
+                    } else {
+                        varCopy = rhs.varNew;
+                        imme_mul = -1;
+                        imme_add = lhs.constValue;
+                    }
+                }
+                case "mul" -> {
+                    if (lhs.constValue == 0) {
+                        status = CONST;
+                        constValue = 0;
+                    } else {
+                        if (rhs.status == UNCERTAIN_COPY) {
+                            varCopy = rhs.varCopy;
+                            imme_mul = rhs.imme_mul * lhs.constValue;
+                            imme_add = rhs.imme_add * lhs.constValue;
+                        } else {
+                            varCopy = rhs.varNew;
+                            imme_mul = lhs.constValue;
+                        }
+                        status = UNCERTAIN_COPY;
+                    }
+                }
+                default -> status = UNCERTAIN_NEW;
+            }
         } else {
-            status = min(lhs.status, rhs.status);
-        }
-        if (status <= UNCERTAIN_COPY) {
             status = UNCERTAIN_NEW;
         }
-        return status != tmp;
+        return status != tmpStatus || imme_add != tmpAdd || imme_mul != tmpMul;
     }
 
-    public boolean removed() {
-        return status != UNCERTAIN_NEW;
-    }
-
-    public String getVar() {
-        if (status == UNCERTAIN_COPY) {
-            return varCopy;
-        } else if (status == UNCERTAIN_NEW) {
-            return varNew;
-        } else {
-            return null;
-        }
-    }
 }

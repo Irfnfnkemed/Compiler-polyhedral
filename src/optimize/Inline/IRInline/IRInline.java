@@ -6,9 +6,12 @@ import src.IR.statement.FuncDef;
 import src.IR.statement.IRStatement;
 import src.Util.cell.Cell;
 import src.Util.type.IRType;
+import src.optimize.ADCE.FunctionADCE;
 import src.optimize.Mem2Reg.CFGDom;
 import src.optimize.Mem2Reg.Dom;
 import src.optimize.Mem2Reg.PutPhi;
+import src.optimize.SCCP.FunctionSCCP;
+import src.optimize.SCCP.SCCP;
 
 import java.util.*;
 
@@ -24,6 +27,9 @@ public class IRInline {
         public int dfn = -1, low = -2;
         public boolean visited = false;
         public int superNodeId = -1;
+        public int size = -1;
+        public boolean inline = false;
+        public boolean rebuild = false;
 
         public FuncNode(FuncDef funcDef_) {
             funcDef = funcDef_;
@@ -108,18 +114,9 @@ public class IRInline {
                 funcNodes.put(((FuncDef) stmt).functionName, new FuncNode((FuncDef) stmt));
             }
         }
-        List<IRStatement> newStmtList = new ArrayList<>();
-        for (var stmt : irProgram.stmtList) {//转移除了funcDef外的stmt
-            if (!(stmt instanceof FuncDef)) {
-                newStmtList.add(stmt);
-            } else {
-                break;
-            }
-        }
         Tarjan("@main");
         for (var funcNode : funcNodes.values()) {
             if (funcNode.dfn != -1) {//main中会调用到
-                newStmtList.add(funcNode.funcDef);
                 for (String callFuncName : funcNode.callList.keySet()) {
                     var callFuncNode = funcNodes.get(callFuncName);
                     if (callFuncNode.superNodeId != funcNode.superNodeId &&
@@ -130,7 +127,6 @@ public class IRInline {
                 }
             }
         }
-        irProgram.stmtList = newStmtList;
     }
 
     private void Tarjan(String funcName) {
@@ -177,14 +173,17 @@ public class IRInline {
             if (superNode.funcNodes.size() == 1 &&
                     !funcNodes.get(superNode.funcNodes.get(0)).callList.containsKey(superNode.funcNodes.get(0))) {
                 FuncDef inlineFunc = funcNodes.get(superNode.funcNodes.get(0)).funcDef;
-                rebuild(inlineFunc);//superNode仅有一个函数节点，且无自环，可以内联
-                for (int id : superNode.preSuperNode) {
-                    var tarSuperNode = superNodes.get(id);
-                    for (String funcName : tarSuperNode.funcNodes) {
-                        var callList = funcNodes.get(funcName).callList.get(inlineFunc.functionName);
-                        if (callList != null) {
-                            for (var call : callList) {
-                                inlineFunc(call, inlineFunc);
+                rebuild(inlineFunc);
+                if (funcNodes.get(inlineFunc.functionName).size < 250) {//superNode仅有一个函数节点，且无自环，长度合适，可以内联
+                    funcNodes.get(inlineFunc.functionName).inline = true;
+                    for (int id : superNode.preSuperNode) {
+                        var tarSuperNode = superNodes.get(id);
+                        for (String funcName : tarSuperNode.funcNodes) {
+                            var callList = funcNodes.get(funcName).callList.get(inlineFunc.functionName);
+                            if (callList != null) {
+                                for (var call : callList) {
+                                    inlineFunc(call, inlineFunc);
+                                }
                             }
                         }
                     }
@@ -201,6 +200,18 @@ public class IRInline {
                 }
             }
         }
+        List<IRStatement> newStmtList = new ArrayList<>();
+        for (var stmt : irProgram.stmtList) {
+            if (stmt instanceof FuncDef) {
+                var tmp = funcNodes.get(((FuncDef) stmt).functionName);
+                if (((FuncDef) stmt).functionName.equals("@main") || (!tmp.inline && tmp.dfn != -1)) {
+                    newStmtList.add(stmt);
+                }
+            } else {
+                newStmtList.add(stmt);
+            }
+        }
+        irProgram.stmtList = newStmtList;
     }
 
     private void inlineFunc(Call call, FuncDef funcDef) {
@@ -223,8 +234,12 @@ public class IRInline {
                 replace.put("%_" + i, call.callList.get(i));
             }
         }
-        Block nowBlock;
+        Block nowBlock, retBlock;
         for (var block : funcDef.irList) {
+//            if (block.instrList.get(block.instrList.size() - 1) instanceof Ret) {
+//                retBlock = block;
+//                continue;
+//            }
             insertList.add(nowBlock = new Block(block.label + postfix));
             for (var instr : block.instrList) {
                 if (instr instanceof Phi) {
@@ -323,12 +338,31 @@ public class IRInline {
     }
 
     private void rebuild(FuncDef funcDef) {
+        var funcNode = funcNodes.get(funcDef.functionName);
+        if (funcNode.rebuild) {
+            return;
+        } else {
+            funcNode.rebuild = true;
+        }
         HashMap<String, Block> blockMap = new HashMap<>();
         for (var block : funcDef.irList) {
             blockMap.put(block.label, block);
         }
         List<Block> newIrList = new ArrayList<>();
-        for (var block : funcDef.irList) {
+        Block retBlock = null;
+        int size = funcDef.irList.size();
+        int x = 1;
+        for (int i = 0; i <= size; ++i) {
+            Block block;
+            if (i == size && retBlock != null) {
+                block = retBlock;
+            } else {
+                block = funcDef.irList.get(i);
+                if (block.instrList.get(block.instrList.size() - 1) instanceof Ret) {
+                    retBlock = block;
+                    continue;
+                }
+            }
             if (block.extraBase instanceof ExtraBlock && ((ExtraBlock) block.extraBase).inline) {
                 Block nowBlock = new Block(block.label);
                 newIrList.add(nowBlock);
@@ -371,7 +405,7 @@ public class IRInline {
                                 }
                             }
                             if (((Br) instr).condition != null) {
-                                 toBlock = blockMap.get(((Br) instr).falseLabel.substring(1));
+                                toBlock = blockMap.get(((Br) instr).falseLabel.substring(1));
                                 for (var instrTo : toBlock.instrList) {
                                     if (instrTo instanceof Phi) {//更新可达的phi
                                         for (var assign : ((Phi) instrTo).assignBlockList) {
@@ -399,5 +433,14 @@ public class IRInline {
         Dom dom = new Dom(cfg);
         PutPhi putPhi = new PutPhi(dom, funcDef);
         merge(funcDef, cfg);
+        FunctionSCCP functionSCCP = new FunctionSCCP(funcDef);
+        functionSCCP.optimize();
+//
+        ////////
+        int funcSize = 0;
+        for (var block : funcDef.irList) {
+            funcSize += block.instrList.size();
+        }
+        funcNodes.get(funcDef.functionName).size = funcSize;
     }
 }

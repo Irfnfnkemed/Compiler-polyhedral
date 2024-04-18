@@ -61,9 +61,13 @@ public class Main {
             irPrint.print();
             ADCE adce = new ADCE(ir.irProgram);
             adce.optimize();
+            fileOutputStream = new FileOutputStream("./src/builtin/test_adce.ll");
+            printStream = new PrintStream(fileOutputStream);
+            System.setOut(printStream);
+            irPrint.print();
             SCCP sccp = new SCCP(ir.irProgram);
             sccp.optimize();
-            fileOutputStream = new FileOutputStream("./src/builtin/test.ll");
+            fileOutputStream = new FileOutputStream("./src/builtin/test_sccp.ll");
             printStream = new PrintStream(fileOutputStream);
             System.setOut(printStream);
             irPrint.print();

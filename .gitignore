@@ -31,6 +31,8 @@ src/builtin/test.s
 src/builtin/test_standard.ll
 src/builtin/test_mem2reg.ll
 src/builtin/test_inline.ll
+src/builtin/test_adce.ll
+src/builtin/test_sccp.ll
 *.s
 .idea
 out

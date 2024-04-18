@@ -18,6 +18,8 @@ public class FunctionSCCP {
     public HashSet<Instruction> SSAPutAlready;
     public HashMap<String, LatticeCell> SSALattice;
     public FuncDef funcDef;
+    private List<Instruction> newInstrList;
+    private int cnt = 1;
 
     public FunctionSCCP(FuncDef funcDef_) {
         workList = new ArrayDeque<>();
@@ -112,6 +114,7 @@ public class FunctionSCCP {
                                 break;
                             }
                             if (instr instanceof Ret) {
+                                visitInstr(instr);
                                 break;
                             } else {
                                 visitInstr(instr);
@@ -193,6 +196,10 @@ public class FunctionSCCP {
             putSSA(((Getelementptr) instr).from, instr);
             putSSA(((Getelementptr) instr).index, instr);
             findLattice(((Getelementptr) instr).result).status = LatticeCell.UNCERTAIN_NEW;
+        } else if (instr instanceof Ret) {
+            if (((Ret) instr).retVar != null) {
+                putSSA(((Ret) instr).retVar, instr);
+            }
         }
         SSAPutAlready.add(instr);
     }
@@ -225,70 +232,74 @@ public class FunctionSCCP {
             } else {
                 continue;
             }
-            List<Instruction> newInstrList = new ArrayList<>();
+            newInstrList = new ArrayList<>();
             for (Instruction instr : block.instrList) {
                 if (instr instanceof Phi) {
-                    if (!findLattice(((Phi) instr).result).removed()) {
-                        newInstrList.add(instr);
+                    if (!remove(((Phi) instr).result)) {
                         for (var assign : ((Phi) instr).assignBlockList) {
                             if (!assign.variable.isConst) {
                                 setByLattice(assign.variable, findLattice(assign.variable));
                             }
                         }
+                        newInstrList.add(instr);
                     }
                 } else if (instr instanceof Binary) {
-                    if (!findLattice(((Binary) instr).output).removed()) {
-                        newInstrList.add(instr);
-                        if (!((Binary) instr).left.isConst) {
-                            setByLattice(((Binary) instr).left, findLattice(((Binary) instr).left));
-                        }
-                        if (!((Binary) instr).right.isConst) {
-                            setByLattice(((Binary) instr).right, findLattice(((Binary) instr).right));
+                    if (!remove(((Binary) instr).output)) {
+                        var lattice = findLattice(((Binary) instr).output);
+                        if (lattice.status == LatticeCell.UNCERTAIN_COPY) {
+                            setByLattice((Binary) instr, lattice);
+                        } else {
+                            if (!((Binary) instr).left.isConst) {
+                                setByLattice(((Binary) instr).left, findLattice(((Binary) instr).left));
+                            }
+                            if (!((Binary) instr).right.isConst) {
+                                setByLattice(((Binary) instr).right, findLattice(((Binary) instr).right));
+                            }
+                            newInstrList.add(instr);
                         }
                     }
                 } else if (instr instanceof Icmp) {
-                    if (!findLattice(((Icmp) instr).output).removed()) {
-                        newInstrList.add(instr);
+                    if (!remove(((Icmp) instr).output)) {
                         if (!((Icmp) instr).left.isConst) {
                             setByLattice(((Icmp) instr).left, findLattice(((Icmp) instr).left));
                         }
                         if (!((Icmp) instr).right.isConst) {
                             setByLattice(((Icmp) instr).right, findLattice(((Icmp) instr).right));
                         }
+                        newInstrList.add(instr);
                     }
                 } else if (instr instanceof Load) {
-                    if (!findLattice(((Load) instr).toVarName).removed()) {
+                    if (!remove(((Load) instr).toVarName)) {
+                        ((Load) instr).fromPointer = setByLattice(((Load) instr).fromPointer);
                         newInstrList.add(instr);
-                        ((Load) instr).fromPointer = findLattice(((Load) instr).fromPointer).getVar();
                     }
                 } else if (instr instanceof Store) {
-                    newInstrList.add(instr);
                     if (!((Store) instr).value.isConst) {
                         setByLattice(((Store) instr).value, findLattice(((Store) instr).value));
-                        ((Store) instr).toPointer = findLattice(((Store) instr).toPointer).getVar();
+                        ((Store) instr).toPointer = setByLattice(((Store) instr).toPointer);
                     }
-                } else if (instr instanceof Call) {
                     newInstrList.add(instr);
+                } else if (instr instanceof Call) {
                     for (var para : ((Call) instr).callList) {
                         if (!para.isConst) {
                             setByLattice(para, findLattice(para.varName));
                         }
                     }
+                    newInstrList.add(instr);
                 } else if (instr instanceof Getelementptr) {
-                    if (!findLattice(((Getelementptr) instr).result).removed()) {
-                        newInstrList.add(instr);
+                    if (!remove(((Getelementptr) instr).result)) {
                         if (!((Getelementptr) instr).index.isConst) {
                             setByLattice(((Getelementptr) instr).index, findLattice(((Getelementptr) instr).index));
                         }
-                        ((Getelementptr) instr).from = findLattice(((Getelementptr) instr).from).getVar();
+                        ((Getelementptr) instr).from = setByLattice(((Getelementptr) instr).from);
+                        newInstrList.add(instr);
                     }
                 } else if (instr instanceof Ret) {
-                    newInstrList.add(instr);
                     if (((Ret) instr).retVar != null && !((Ret) instr).retVar.isConst) {
                         setByLattice(((Ret) instr).retVar, findLattice(((Ret) instr).retVar));
                     }
-                } else if (instr instanceof Br) {
                     newInstrList.add(instr);
+                } else if (instr instanceof Br) {
                     var lattice = findLattice(((Br) instr).condition);
                     if (lattice != null && lattice.status == LatticeCell.CONST) {
                         if (lattice.constValue == 0) {
@@ -296,6 +307,7 @@ public class FunctionSCCP {
                         }
                         ((Br) instr).condition = null;
                     }
+                    newInstrList.add(instr);
                 }
             }
             block.instrList = newInstrList;
@@ -306,8 +318,131 @@ public class FunctionSCCP {
     private void setByLattice(Cell cell, LatticeCell latticeCell) {
         if (latticeCell.status == LatticeCell.CONST) {
             cell.set(latticeCell.constValue);
+        } else if (latticeCell.status == LatticeCell.UNCERTAIN_COPY) {
+            if (remove(cell.varName)) {
+                if (latticeCell.imme_mul == -1) {
+                    Binary binary = new Binary("-");
+                    binary.left.set(latticeCell.imme_add);
+                    binary.right.set(latticeCell.varCopy);
+                    binary.output = latticeCell.varCopy + "-sccp" + cnt++;
+                    cell.set(binary.output);
+                    newInstrList.add(binary);
+                    return;
+                }
+                String copy = latticeCell.varCopy;
+                if (latticeCell.imme_mul != 1) {
+                    Binary binary = new Binary("*");
+                    binary.left.set(copy);
+                    binary.right.set(latticeCell.imme_mul);
+                    copy += "-sccp" + cnt++;
+                    binary.output = copy;
+                    newInstrList.add(binary);
+                }
+                if (latticeCell.imme_add != 0) {
+                    Binary binary = new Binary("+");
+                    binary.left.set(copy);
+                    binary.right.set(latticeCell.imme_add);
+                    copy += "-sccp" + cnt++;
+                    binary.output = copy;
+                    newInstrList.add(binary);
+                }
+                cell.set(copy);
+            } else {
+                cell.set(latticeCell.varNew);
+            }
         } else {
-            cell.set(latticeCell.getVar());
+            cell.set(latticeCell.varNew);
+        }
+    }
+
+    private String setByLattice(String varName) {
+        var lattice = findLattice(varName);
+        if (lattice == null) {
+            return varName;
+        }
+        if (lattice.status == LatticeCell.UNCERTAIN_COPY) {
+            if (remove(varName)) {
+                if (lattice.imme_mul == -1) {
+                    Binary binary = new Binary("-");
+                    binary.left.set(lattice.imme_add);
+                    binary.right.set(lattice.varCopy);
+                    binary.output = lattice.varCopy + "-sccp" + cnt++;
+                    newInstrList.add(binary);
+                    return binary.output;
+                }
+                String copy = lattice.varCopy;
+                if (lattice.imme_mul != 1) {
+                    Binary binary = new Binary("*");
+                    binary.left.set(copy);
+                    binary.right.set(lattice.constValue);
+                    copy += "-sccp" + cnt++;
+                    binary.output = copy;
+                    newInstrList.add(binary);
+                }
+                if (lattice.imme_add != 0) {
+                    Binary binary = new Binary("+");
+                    binary.left.set(copy);
+                    binary.right.set(lattice.imme_add);
+                    copy += "-sccp" + cnt++;
+                    binary.output = copy;
+                    newInstrList.add(binary);
+                }
+                return copy;
+            } else {
+                return varName;
+            }
+        } else {
+            return varName;
+        }
+    }
+
+    private void setByLattice(Binary instr, LatticeCell latticeCell) {
+        if ((instr.left.isConst && !remove(instr.right.varName)) ||
+                (instr.right.isConst && !remove(instr.left.varName))) {
+            newInstrList.add(instr);
+            return;
+        }
+        if (latticeCell.imme_mul == -1) {
+            instr.left.set(latticeCell.imme_add);
+            instr.right.set(latticeCell.varCopy);
+            instr.op = "sub";
+            newInstrList.add(instr);
+            return;
+        }
+        Binary binary = null;
+        String copy = latticeCell.varCopy;
+        if (latticeCell.imme_mul != 1) {
+            binary = new Binary("*");
+            binary.left.set(copy);
+            binary.right.set(latticeCell.imme_mul);
+            copy += "-sccp" + cnt++;
+            binary.output = copy;
+            newInstrList.add(binary);
+        }
+        if (latticeCell.imme_add != 0) {
+            binary = new Binary("+");
+            binary.left.set(copy);
+            binary.right.set(latticeCell.imme_add);
+            binary.output = instr.output;
+            newInstrList.add(binary);
+        } else {
+            binary.output = instr.output;
+        }
+    }
+
+    private boolean remove(String varName) {
+        var lattice = findLattice(varName);
+        if (lattice.status == LatticeCell.UNCERTAIN_NEW) {
+            return false;
+        } else if (lattice.status >= LatticeCell.CONST) {
+            return true;
+        } else {
+            if (lattice.imme_add == 0 && lattice.imme_mul == 1) {
+                return true;
+            } else {
+                var useList = SSAInstr.get(varName);
+                return !(useList.size() >= 2 || (useList.size() == 1 && useList.get(0) instanceof Phi));
+            }
         }
     }
 }
