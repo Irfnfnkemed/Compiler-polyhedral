@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!lib/cplex.jar
 !lib/antlr-4.13.0-complete.jar
 *.war
 *.nar

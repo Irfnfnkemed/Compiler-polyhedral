@@ -1,6 +1,7 @@
 package src.polyhedral.dependency;
 
 import src.polyhedral.extract.Domain;
+import src.polyhedral.extract.Index;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -10,11 +11,13 @@ public class Model {
     public HashMap<String, List<MemRW>> read;
     public HashMap<String, List<MemRW>> write;
     public List<Dependency> dependencies;
+    public List<Index> indexList;
 
     public Model(Domain domain) {
         read = new HashMap<>();
         write = new HashMap<>();
         dependencies = new ArrayList<>();
+        indexList = domain.indexList;
         for (var assign : domain.stmtList) {
             if (!write.containsKey(assign.write.varName)) {
                 write.put(assign.write.varName, new ArrayList<>());
@@ -30,6 +33,9 @@ public class Model {
     }
 
     public boolean setDependency() {
+        if (write.isEmpty()) {
+            return true;
+        }
         for (var entry : write.entrySet()) {
             // write after write
             for (var memWriteFrom : entry.getValue()) {
@@ -42,25 +48,27 @@ public class Model {
                     }
                 }
             }
-            // write after read
-            for (var memWriteTo : entry.getValue()) {
-                for (var memReadFrom : read.get(entry.getKey())) {
-                    Dependency dependency = new Dependency(memReadFrom, memWriteTo);
-                    if (dependency.valid) {
-                        dependencies.add(dependency);
-                    } else {
-                        return false;
+            if (!read.isEmpty()) {
+                // write after read
+                for (var memWriteTo : entry.getValue()) {
+                    for (var memReadFrom : read.get(entry.getKey())) {
+                        Dependency dependency = new Dependency(memReadFrom, memWriteTo);
+                        if (dependency.valid) {
+                            dependencies.add(dependency);
+                        } else {
+                            return false;
+                        }
                     }
                 }
-            }
-            // read after write
-            for (var memWriteFrom : entry.getValue()) {
-                for (var memReadTo : read.get(entry.getKey())) {
-                    Dependency dependency = new Dependency(memWriteFrom, memReadTo);
-                    if (dependency.valid) {
-                        dependencies.add(dependency);
-                    } else {
-                        return false;
+                // read after write
+                for (var memWriteFrom : entry.getValue()) {
+                    for (var memReadTo : read.get(entry.getKey())) {
+                        Dependency dependency = new Dependency(memWriteFrom, memReadTo);
+                        if (dependency.valid) {
+                            dependencies.add(dependency);
+                        } else {
+                            return false;
+                        }
                     }
                 }
             }

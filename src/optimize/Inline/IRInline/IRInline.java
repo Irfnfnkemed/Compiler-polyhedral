@@ -435,7 +435,6 @@ public class IRInline {
         merge(funcDef, cfg);
         FunctionSCCP functionSCCP = new FunctionSCCP(funcDef);
         functionSCCP.optimize();
-//
         ////////
         int funcSize = 0;
         for (var block : funcDef.irList) {

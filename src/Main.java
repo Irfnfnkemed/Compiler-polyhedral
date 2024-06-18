@@ -104,3 +104,77 @@ public class Main {
     }
 }
 
+//
+//
+//import ilog.concert.IloException;
+//import ilog.concert.IloLinearNumExpr;
+//import ilog.concert.IloNumVar;
+//import ilog.cplex.IloCplex;
+//
+//public class Main {
+//
+//    public static void main(String[] args) throws IloException {
+//
+//        // 创建cplex对象，往后基于此对象进行模型的建立与求解
+//        IloCplex cplex = new IloCplex();
+//
+//        // 声明决策变量 x1，x2，x3
+//        // x1 的取值范围是 -10 ~ 50
+//        IloNumVar x1 = cplex.intVar(-10,50);
+//        // x2 的取值范围是 0 ~ 正无穷(这里用Double类型能接受的最大值代替正无穷)
+//        IloNumVar x2 = cplex.intVar(0,Integer.MAX_VALUE);
+//        // x3 被限定为 等于 5 (相当于取值范围是5~5)
+//        IloNumVar x3 = cplex.intVar(5,5);
+//
+//        // 定义目标函数表达式
+//        IloLinearNumExpr target = cplex.linearNumExpr();
+//        target.addTerm(1,x1);  // addTerm(a,b) 是指将 a*b 追加到表达式中
+//        target.addTerm(2,x2);
+//        target.addTerm(3,x3);
+//
+//        // 声明求解目标函数的最大值,将目标函数加入到cplex模型中
+//        cplex.addMaximize(target);
+//
+//        // 添加约束
+//        // 约束1：X1+2*X2+X3 <= 100   用表达式添加约束
+//        IloLinearNumExpr expr1 = cplex.linearNumExpr();
+//        expr1.addTerm(1,x1);
+//        expr1.addTerm(2,x2);
+//        expr1.addTerm(1,x3);
+//        cplex.addLe(expr1,100);  // addLe(a,b)  代表令 a <= b
+//        // 约束2：X1+X2-2*X3 >= 10
+//        IloLinearNumExpr expr2 = cplex.linearNumExpr();
+//        expr2.addTerm(1,x1);
+//        expr2.addTerm(1,x2);
+//        expr2.addTerm(-2,x3);
+//        cplex.addGe(expr2,10);   // addGe(a,b)  代表令 a >= b
+//        // 约束3 ： x3 = 5
+//        // （由于声明x3变量的时候范围已经限制在5~5之间，所以这里其实没有必有再写了
+//        // 但是为了让大家了解addEq的用法，在这里还是演示一下）
+//        cplex.addEq(x3,5);    // addGe(a,b)  代表令 a = b
+//
+//        // 激动人心的求解时刻!
+//        // 只需要调用cplex.solve()即可 ，返回值为是否找到解
+//        boolean isSolve = cplex.solve();
+//
+//        if(isSolve){
+//            // 如果找到了解
+//            double result = cplex.getObjValue();  // 获取解（目标函数最大值）
+//            System.out.println("目标函数最大值为："+result);
+//
+//            // 我们还可以看看x1，x2，x3分别取什么的情况下，使得目标函数达到最值
+//            double x1_value = cplex.getValue(x1);
+//            double x2_value = cplex.getValue(x2);
+//            double x3_value = cplex.getValue(x3);
+//            System.out.println("x1 = "+x1_value);
+//            System.out.println("x2 = "+x2_value);
+//            System.out.println("x3 = "+x3_value);
+//
+//        }else{
+//            // 如果找不到解
+//            System.err.println("此题无解");
+//        }
+//    }
+//
+//}
+

@@ -17,15 +17,25 @@ public class Affine {
         bias = obj.bias;
     }
 
-    public void addVarCo(String variable, long coefficient_) {
+    public Affine(Affine obj, int cnt) {
+        coefficient = new HashMap<>();
+        for (var entry : obj.coefficient.entrySet()) {
+            coefficient.put(entry.getKey() + "#" + cnt, entry.getValue());
+        }
+        bias = obj.bias;
+    }
+
+    public Affine addVarCo(String variable, long coefficient_) {
         coefficient.merge(variable, coefficient_, Long::sum);
         if (coefficient.get(variable) == 0) {
             coefficient.remove(variable);
         }
+        return this;
     }
 
-    public void addBias(long bias_) {
+    public Affine addBias(long bias_) {
         bias = bias + bias_;
+        return this;
     }
 
     public void merge(Affine obj, long mul) {

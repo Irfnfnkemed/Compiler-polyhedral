@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Coordinates {
-    int dim;
+    public int dim;
     public List<String> varName;
     public List<Integer> stmtId;
 

@@ -9,25 +9,32 @@ import java.util.List;
 import static src.polyhedral.dependency.Constrain.EQ;
 
 public class Dependency {
+
+    static int cnt = 0;
+
     public Coordinates coordinatesFrom;
     public Coordinates coordinatesTo;
     public List<Constrain> constrains;
+    public Lexicographic lexicographic;
     public Boolean valid = true;
+    public int id;
 
     public Dependency(MemRW from, MemRW to) {
         coordinatesFrom = from.coordinates;
         coordinatesTo = to.coordinates;
         constrains = new ArrayList<>();
+        id = cnt++;
         for (int i = 0; i < to.addr.size(); ++i) {
             if (to.addr.get(i).coefficient.size() >= 2) {
                 valid = false;
                 return;
             }
-            Affine lhs = new Affine(to.addr.get(i));
+            Affine lhs = new Affine(to.addr.get(i), id);
             Affine rhs = new Affine(from.addr.get(i));
             rhs.addBias(-lhs.bias);
             lhs.bias = 0;
             constrains.add(new Constrain(lhs, rhs, EQ));
         }
+        lexicographic = new Lexicographic(this);
     }
 }
