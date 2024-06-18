@@ -1,7 +1,6 @@
-package src.polyhedral.dependency;
+package src.polyhedral.extract;
 
 import java.util.HashMap;
-import java.util.List;
 
 public class Affine {
     public HashMap<String, Long> coefficient;

@@ -27,8 +27,6 @@ public class Expression extends ASTNode {
             visitor.visit((BoolExp) this);
         } else if (this instanceof NullExp) {
             visitor.visit((NullExp) this);
-        } else if (this instanceof PrimaryExp) {
-            visitor.visit((PrimaryExp) this);
         } else if (this instanceof ClassMemberLhsExp) {
             visitor.visit((ClassMemberLhsExp) this);
         } else if (this instanceof ClassMemFunctionLhsExp) {

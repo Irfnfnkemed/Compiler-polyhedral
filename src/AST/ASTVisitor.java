@@ -49,8 +49,6 @@ public interface ASTVisitor {
 
     public void visit(ParallelExp node);
 
-    public void visit(PrimaryExp node);
-
     public void visit(ClassMemberLhsExp node);
 
     public void visit(ClassMemFunctionLhsExp node);

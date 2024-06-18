@@ -310,10 +310,7 @@ public class ASTBuilder extends MxBaseVisitor<ASTNode> {
         if (ctx == null) {
             return null;
         }
-        PrimaryExp primaryExp = new PrimaryExp();
-        primaryExp.exp = (Expression) visitExpression(ctx.expression());
-        primaryExp.isAssign = primaryExp.exp.isAssign;
-        return primaryExp;
+        return visitExpression(ctx.expression());
     }
 
     @Override

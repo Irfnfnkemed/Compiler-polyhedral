@@ -1,9 +1,8 @@
-package src.polyhedral.dependency;
+package src.polyhedral.extract;
 
 import src.AST.definition.variableDef.InitVariable;
 import src.AST.expression.*;
 import src.AST.statement.Statement;
-import src.AST.statement.Suite;
 import src.AST.statement.loopStatement.ForLoop;
 
 import java.util.ArrayList;

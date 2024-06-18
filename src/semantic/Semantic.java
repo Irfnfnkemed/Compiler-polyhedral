@@ -359,16 +359,6 @@ public class Semantic implements ASTVisitor {
         }
     }
 
-    public void visit(PrimaryExp node) {
-        if (node == null) {
-            return;
-        }
-        node.exp.scope = node.scope;
-        node.exp.accept(this);
-        node.type = new Type(node.exp.type);
-        node.isAssign = node.exp.isAssign;
-    }
-
     public void visit(ClassMemberLhsExp node) {
         if (node == null) {
             return;

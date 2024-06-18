@@ -1,4 +1,4 @@
-package src.polyhedral.dependency;
+package src.polyhedral.extract;
 
 import java.util.ArrayList;
 import java.util.List;

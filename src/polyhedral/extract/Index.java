@@ -1,4 +1,4 @@
-package src.polyhedral.dependency;
+package src.polyhedral.extract;
 
 public class Index {
     public String varName;
