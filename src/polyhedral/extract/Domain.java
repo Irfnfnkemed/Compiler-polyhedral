@@ -59,9 +59,9 @@ public class Domain {
             if (!getNumber(cond.rhs)) {
                 return false;
             }
-            boundTo = (long) result.get(0) + offsetBoundTo;
+            boundTo = (long) result.pop() + offsetBoundTo;
         } else if (getNumber(cond.lhs)) {
-            boundTo = (long) result.get(0) - offsetBoundTo;
+            boundTo = (long) result.pop() - offsetBoundTo;
             if (!(cond.rhs instanceof VariableLhsExp variable)) {
                 return false;
             }
@@ -114,9 +114,9 @@ public class Domain {
                     if (!getNumber(stepExp.rhs)) {
                         return false;
                     }
-                    step = add * (long) result.get(0);
+                    step = add * (long) result.pop();
                 } else if (getNumber(stepExp.lhs)) {
-                    step = add * (long) result.get(0);
+                    step = add * (long) result.pop();
                     if (add == -1) {
                         return false;
                     }

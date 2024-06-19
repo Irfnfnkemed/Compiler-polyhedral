@@ -2,8 +2,10 @@ package src.polyhedral.dependency;
 
 import src.polyhedral.extract.Affine;
 import src.polyhedral.extract.Coordinates;
+import src.polyhedral.extract.Index;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import static src.polyhedral.dependency.Constrain.EQ;
@@ -14,15 +16,17 @@ public class Dependency {
 
     public Coordinates coordinatesFrom;
     public Coordinates coordinatesTo;
+    public HashMap<String, Index> indexBound;
     public List<Constrain> constrains;
     public Lexicographic lexicographic;
     public Boolean valid = true;
     public int id;
 
-    public Dependency(MemRW from, MemRW to) {
+    public Dependency(MemRW from, MemRW to, HashMap<String, Index> indexBound_) {
         coordinatesFrom = from.coordinates;
         coordinatesTo = to.coordinates;
         constrains = new ArrayList<>();
+        indexBound = indexBound_;
         id = cnt++;
         for (int i = 0; i < to.addr.size(); ++i) {
             if (to.addr.get(i).coefficient.size() >= 2) {

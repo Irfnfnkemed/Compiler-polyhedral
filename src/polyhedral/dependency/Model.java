@@ -11,13 +11,16 @@ public class Model {
     public HashMap<String, List<MemRW>> read;
     public HashMap<String, List<MemRW>> write;
     public List<Dependency> dependencies;
-    public List<Index> indexList;
+    public HashMap<String, Index> indexBound;
 
     public Model(Domain domain) {
         read = new HashMap<>();
         write = new HashMap<>();
         dependencies = new ArrayList<>();
-        indexList = domain.indexList;
+        indexBound = new HashMap<>();
+        for (var index : domain.indexList) {
+            indexBound.put(index.varName, index);
+        }
         for (var assign : domain.stmtList) {
             if (!write.containsKey(assign.write.varName)) {
                 write.put(assign.write.varName, new ArrayList<>());
@@ -40,9 +43,11 @@ public class Model {
             // write after write
             for (var memWriteFrom : entry.getValue()) {
                 for (var memWriteTo : entry.getValue()) {
-                    Dependency dependency = new Dependency(memWriteFrom, memWriteTo);
+                    Dependency dependency = new Dependency(memWriteFrom, memWriteTo, indexBound);
                     if (dependency.valid) {
-                        dependencies.add(dependency);
+                        if (dependency.lexicographic.valid()) {
+                            dependencies.add(dependency);
+                        }
                     } else {
                         return false;
                     }
@@ -52,9 +57,11 @@ public class Model {
                 // write after read
                 for (var memWriteTo : entry.getValue()) {
                     for (var memReadFrom : read.get(entry.getKey())) {
-                        Dependency dependency = new Dependency(memReadFrom, memWriteTo);
+                        Dependency dependency = new Dependency(memReadFrom, memWriteTo, indexBound);
                         if (dependency.valid) {
-                            dependencies.add(dependency);
+                            if (dependency.lexicographic.valid()) {
+                                dependencies.add(dependency);
+                            }
                         } else {
                             return false;
                         }
@@ -63,9 +70,11 @@ public class Model {
                 // read after write
                 for (var memWriteFrom : entry.getValue()) {
                     for (var memReadTo : read.get(entry.getKey())) {
-                        Dependency dependency = new Dependency(memWriteFrom, memReadTo);
+                        Dependency dependency = new Dependency(memWriteFrom, memReadTo, indexBound);
                         if (dependency.valid) {
-                            dependencies.add(dependency);
+                            if (dependency.lexicographic.valid()) {
+                                dependencies.add(dependency);
+                            }
                         } else {
                             return false;
                         }
