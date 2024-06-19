@@ -8,12 +8,14 @@ import java.util.HashMap;
 import java.util.List;
 
 public class Model {
+    public Domain domain;
     public HashMap<String, List<MemRW>> read;
     public HashMap<String, List<MemRW>> write;
     public List<Dependency> dependencies;
     public HashMap<String, Index> indexBound;
 
-    public Model(Domain domain) {
+    public Model(Domain domain_) {
+        domain = domain_;
         read = new HashMap<>();
         write = new HashMap<>();
         dependencies = new ArrayList<>();

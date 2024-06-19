@@ -24,6 +24,7 @@ import src.Util.type.IRType;
 import src.Util.type.Type;
 import src.polyhedral.dependency.Model;
 import src.polyhedral.extract.Domain;
+import src.polyhedral.schedule.Schedule;
 
 import java.util.*;
 
@@ -414,6 +415,8 @@ public class IRBuilder implements ASTVisitor {
         boolean f = d.getLoop(node);
         Model m = new Model(d);
         f = m.setDependency();
+        Schedule s = new Schedule(m);
+        s.solve();
         ((FuncDef) now).pushLoop();
         var tmp = ((FuncDef) now).getLoop();
         String condition = var("loopCondition", node.scope.loopPos.line, node.scope.loopPos.column);
