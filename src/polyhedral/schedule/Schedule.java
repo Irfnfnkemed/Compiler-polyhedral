@@ -7,12 +7,13 @@ import ilog.cplex.IloCplex;
 import src.polyhedral.dependency.Constrain;
 import src.polyhedral.dependency.Dependency;
 import src.polyhedral.dependency.Model;
-import src.polyhedral.extract.Affine;
 import src.polyhedral.extract.Coordinates;
+import src.polyhedral.extract.Index;
+import src.polyhedral.matrix.Fraction;
+import src.polyhedral.matrix.Matrix;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 
 import static src.polyhedral.dependency.Constrain.*;
@@ -23,12 +24,15 @@ public class Schedule {
     public IloCplex cplex;
     public HashMap<Coordinates, List<IloNumVar>> coefficient;
     public IloNumVar costW;
+    public HashMap<Coordinates, List<List<Integer>>> coefficientAns;
+
 
     public Schedule(Model model_) {
         model = model_;
         try {
             cplex = new IloCplex();
             coefficient = new HashMap<>();
+            coefficientAns = new HashMap<>();
             costW = cplex.intVar(0, Integer.MAX_VALUE);
             cplex.addGe(costW, 1);
             // set undetermined coefficient
@@ -43,6 +47,7 @@ public class Schedule {
                 IloNumVar x = cplex.intVar(0, Integer.MAX_VALUE);
                 tmp.add(x); // bias
                 coefficient.put(assign.coordinates, tmp);
+                coefficientAns.put(assign.coordinates, new ArrayList<>());
                 cplex.addGe(expr, 1); // avoid zero-vec
             }
             // set dependency and cost bound
@@ -82,6 +87,16 @@ public class Schedule {
                     }
                 }
                 System.err.println("成功！");
+                for (var entry : coefficient.entrySet()) {
+                    List<Integer> tmp = new ArrayList<>();
+                    for (var x : entry.getValue()) {
+                        tmp.add((int) cplex.getValue(x));
+                    }
+                    coefficientAns.get(entry.getKey()).add(tmp);
+                }
+                for (Coordinates coordinates : coefficient.keySet()) {
+                    setOrthogonal(coordinates);
+                }
             } else {
                 // 如果找不到解
                 System.err.println("失败！");
@@ -156,6 +171,28 @@ public class Schedule {
                 if (constrain.lhs.bias - constrain.rhs.bias != 0) {
                     getExp("$", rhs).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
                 }
+            }
+        }
+        for (String varName : lhs.keySet()) {
+            if (!varName.equals("$")) {
+                Index index = dependency.indexBound.get(getName(varName));
+                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(1, farkas1);
+                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(-1, farkas2);
+                getExp("$", rhs).addTerm(index.boundTo, farkas2);
+            }
+        }
+        for (String varName : rhs.keySet()) {
+            if (!lhs.containsKey(varName) && !varName.equals("$")) {
+                Index index = dependency.indexBound.get(getName(varName));
+                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(1, farkas1);
+                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(-1, farkas2);
+                getExp("$", rhs).addTerm(index.boundTo, farkas2);
             }
         }
         IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
@@ -241,6 +278,28 @@ public class Schedule {
                 }
             }
         }
+        for (String varName : lhs.keySet()) {
+            if (!varName.equals("$")) {
+                Index index = dependency.indexBound.get(getName(varName));
+                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(1, farkas1);
+                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(-1, farkas2);
+                getExp("$", rhs).addTerm(index.boundTo, farkas2);
+            }
+        }
+        for (String varName : rhs.keySet()) {
+            if (!lhs.containsKey(varName) && !varName.equals("$")) {
+                Index index = dependency.indexBound.get(getName(varName));
+                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(1, farkas1);
+                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                getExp(varName, rhs).addTerm(-1, farkas2);
+                getExp("$", rhs).addTerm(index.boundTo, farkas2);
+            }
+        }
         IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
         getExp("$", rhs).addTerm(1, farkas);
         for (var entry : lhs.entrySet()) {
@@ -262,5 +321,56 @@ public class Schedule {
             map.put(varName, cplex.linearNumExpr());
         }
         return map.get(varName);
+    }
+
+    Matrix orthogonalSpace(Coordinates coordinates) {
+        int col = coefficient.get(coordinates).size() - 1;
+        int row = coefficientAns.get(coordinates).size();
+        Matrix Hs = new Matrix(row, col);
+        for (int i = 0; i < row; ++i) {
+            var tmp = coefficientAns.get(coordinates).get(i);
+            for (int j = 0; j < col; ++j) {
+                Hs.setElement(i, j, new Fraction(tmp.get(j)));
+            }
+        }
+        Matrix identity = new Matrix(col, col);
+        for (int i = 0; i < col; ++i) {
+            for (int j = 0; j < col; ++j) {
+                if (i == j) {
+                    identity.setElement(i, j, new Fraction(1));
+                } else {
+                    identity.setElement(i, j, new Fraction(0));
+                }
+            }
+        }
+        Matrix Hst = Hs.trans();
+        Matrix inv = (Hs.mul(Hst)).inverse();
+        Fraction det = (Hs.mul(Hst)).det();
+        return (identity.sub((Hst.mul(inv).mul(Hs)))).scalarMul(det);
+    }
+
+    void setOrthogonal(Coordinates coordinates) throws IloException {
+        Matrix Hs = orthogonalSpace(coordinates);
+        var valid = Hs.findDependent();
+        var expTol = cplex.linearNumExpr();
+        var list = coefficient.get(coordinates);
+        for (int i : valid) {
+            var exp = cplex.linearNumExpr();
+            for (int j = 0; j < list.size() - 1; ++j) {
+                exp.addTerm(Hs.getElement(i, j).toInt(), list.get(j));
+            }
+            cplex.addGe(exp, 0);
+            expTol.add(exp);
+        }
+        cplex.addGe(expTol, 1); // avoid zero-vec
+    }
+
+    String getName(String varName) {
+        int hashIndex = varName.indexOf('#');
+        if (hashIndex != -1) {
+            return varName.substring(0, hashIndex);
+        } else {
+            return varName;
+        }
     }
 }

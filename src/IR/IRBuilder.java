@@ -417,6 +417,7 @@ public class IRBuilder implements ASTVisitor {
         f = m.setDependency();
         Schedule s = new Schedule(m);
         s.solve();
+        s.solve();
         ((FuncDef) now).pushLoop();
         var tmp = ((FuncDef) now).getLoop();
         String condition = var("loopCondition", node.scope.loopPos.line, node.scope.loopPos.column);

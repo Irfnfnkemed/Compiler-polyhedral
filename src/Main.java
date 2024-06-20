@@ -17,6 +17,8 @@ import src.optimize.RegAllocation.RegAllocation;
 import src.optimize.SCCP.SCCP;
 import src.parser.MxLexer;
 import src.parser.MxParser;
+import src.polyhedral.matrix.Fraction;
+import src.polyhedral.matrix.Matrix;
 import src.semantic.Semantic;
 
 import java.io.FileInputStream;
