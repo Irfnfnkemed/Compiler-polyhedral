@@ -19,7 +19,7 @@ public class Exp extends IRNode {
     }
 
     public void set(long value) {
-        varStack.push(new Cell().set(value));
+        varStack.push(new Cell().set((int)value));
     }
 
     public void set(boolean value) {

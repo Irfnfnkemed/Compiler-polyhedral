@@ -74,13 +74,26 @@ public class Fraction {
         return (this.numerator == val && this.denominator == 1);
     }
 
+    public boolean less(Fraction other) {
+        var tmp = this.sub(other);
+        return tmp.numerator * tmp.denominator < 0;
+    }
+
+    public boolean less(long val) {
+        return numerator * denominator < 0;
+    }
+
+
     public int toInt() {
+        if (denominator < 0) {
+            denominator = -denominator;
+            numerator = -numerator;
+        }
         if (denominator != 1) {
             throw new ArithmeticException("Cannot transform to Integer.");
         }
         return (int) numerator;
     }
-
 
 
     @Override

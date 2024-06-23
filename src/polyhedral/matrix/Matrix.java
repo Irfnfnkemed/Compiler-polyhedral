@@ -3,6 +3,8 @@ package src.polyhedral.matrix;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.Math.abs;
+
 public class Matrix {
     private Fraction[][] data;
     private int rows;
@@ -26,6 +28,10 @@ public class Matrix {
             throw new IndexOutOfBoundsException("Element (" + row + ", " + column + ") out of bounds.");
         }
         return data[row][column];
+    }
+
+    public int row() {
+        return rows;
     }
 
     public Matrix add(Matrix other) {
@@ -223,6 +229,65 @@ public class Matrix {
             valid.add(id[row]);
         }
         return valid;
+    }
+
+    public Matrix getHermite() {
+        Matrix cal = new Matrix(columns, rows);
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
+                cal.setElement(i, j, new Fraction(data[j][i]));
+            }
+        }
+        for (int row = 0; row < rows; row++) {
+            while (true) {
+                Fraction min = new Fraction(Integer.MAX_VALUE);
+                int trowSelect = -1;
+                for (int trow = row; trow < rows; trow++) {
+                    if (!cal.data[trow][row].equal(0) && cal.data[trow][row].less(min)) {
+                        min = cal.data[trow][row];
+                        trowSelect = trow;
+                    }
+                }
+                if (trowSelect == -1) {
+                    cal.data[0][0] = new Fraction(0); // no solution
+                    return cal;
+                }
+                for (int i = row; i < columns; i++) { // swap
+                    Fraction temp = cal.data[row][i];
+                    cal.data[row][i] = cal.data[trowSelect][i];
+                    cal.data[trowSelect][i] = temp;
+                }
+                boolean flag = true;
+                for (int trow = row + 1; trow < rows; trow++) {
+                    if (cal.data[trow][row].equal(0)) {
+                        continue;
+                    }
+                    flag = false;
+                    Fraction k = new Fraction(cal.data[trow][row].toInt() / cal.data[row][row].toInt());
+                    for (int col = row; col < columns; col++) {
+                        cal.data[trow][col] = cal.data[trow][col].sub(k.mul(cal.data[row][col]));
+                    }
+                }
+                if (flag) {
+                    for (int trow = row + 1; trow < rows; trow++) {
+                        if (cal.data[trow][row + 1].less(0)) {
+                            for (int col = row + 1; col < columns; col++) {
+                                cal.data[trow][col] = cal.data[trow][col].neg();
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        for (int i = 0; i < rows; ++i) {
+            if (cal.data[i][i].less(0)) {
+                for (int j = 0; j < columns; ++j) {
+                    cal.data[i][j] = cal.data[i][j].neg();
+                }
+            }
+        }
+        return cal;
     }
 
 

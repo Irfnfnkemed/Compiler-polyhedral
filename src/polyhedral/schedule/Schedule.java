@@ -20,25 +20,34 @@ import static src.polyhedral.dependency.Constrain.*;
 
 public class Schedule {
 
-    public Model model;
-    public IloCplex cplex;
-    public HashMap<Coordinates, List<IloNumVar>> coefficient;
-    public IloNumVar costW;
-    public HashMap<Coordinates, List<List<Integer>>> coefficientAns;
+    private Model model;
+    private IloCplex cplex;
+    private HashMap<Coordinates, List<IloNumVar>> coefficient;
+    private IloNumVar costW;
+    private HashMap<Coordinates, List<List<Integer>>> coefficientAns;
+    public HashMap<Coordinates, Matrix> transforms;
+    public HashMap<Coordinates, Matrix> transformInverses;
+    public HashMap<Coordinates, Matrix> hermites;
+    public FourierMotzkin fourierMotzkin;
 
 
     public Schedule(Model model_) {
         model = model_;
+        coefficient = new HashMap<>();
+        coefficientAns = new HashMap<>();
+        transforms = new HashMap<>();
+        transformInverses = new HashMap<>();
+        hermites = new HashMap<>();
         try {
             cplex = new IloCplex();
-            coefficient = new HashMap<>();
-            coefficientAns = new HashMap<>();
             costW = cplex.intVar(0, Integer.MAX_VALUE);
             cplex.addGe(costW, 1);
+            int dim = 0;
             // set undetermined coefficient
             for (var assign : model.domain.stmtList) {
                 IloLinearNumExpr expr = cplex.linearNumExpr();
                 List<IloNumVar> tmp = new ArrayList<>();
+                dim = assign.coordinates.dim;
                 for (int i = 0; i < assign.coordinates.dim; ++i) { // the last term is bias coefficient
                     IloNumVar x = cplex.intVar(0, Integer.MAX_VALUE);
                     tmp.add(x);
@@ -66,9 +75,15 @@ public class Schedule {
                 }
             }
             cplex.addMinimize(target);
+            for (int i = 0; i < dim; ++i) {
+                if (!solve()) {
+                    return;
+                }
+            }
         } catch (IloException e) {
             throw new RuntimeException(e);
         }
+        reorder();
     }
 
     public boolean solve() {
@@ -107,6 +122,16 @@ public class Schedule {
         return false;
     }
 
+    public void reorder() {
+        for (Coordinates coordinates : coefficientAns.keySet()) {
+            transform(coordinates);
+        }
+        fourierMotzkin = new FourierMotzkin(model.domain.indexList);
+        for (Matrix transformInverse : transformInverses.values()) {
+            fourierMotzkin.setTransform(transformInverse);
+        }
+    }
+
     void setDependency(Dependency dependency, int lexiDim) throws IloException {
         // use Farkas Lemma
         HashMap<String, IloLinearNumExpr> lhs = new HashMap<>(); // "$" represents constant
@@ -122,56 +147,10 @@ public class Schedule {
         }
         getExp("$", lhs).addTerm(-1, coefficient.get(dependency.coordinatesFrom).get(dependency.coordinatesFrom.dim));
         for (Constrain constrain : dependency.constrains) {
-            if (constrain.op == LE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.rhs.bias - constrain.lhs.bias, farkas);
-                }
-            }
-            if (constrain.op == GE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
-                }
-            }
+            setFarkas(constrain, rhs);
         }
         for (Constrain constrain : dependency.lexicographic.constrains.get(lexiDim)) {
-            if (constrain.op == LE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.rhs.bias - constrain.lhs.bias, farkas);
-                }
-            }
-            if (constrain.op == GE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
-                }
-            }
+            setFarkas(constrain, rhs);
         }
         for (String varName : lhs.keySet()) {
             if (!varName.equals("$")) {
@@ -227,56 +206,10 @@ public class Schedule {
         }
         getExp("$", lhs).addTerm(1, coefficient.get(dependency.coordinatesFrom).get(dependency.coordinatesFrom.dim));
         for (Constrain constrain : dependency.constrains) {
-            if (constrain.op == LE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.rhs.bias - constrain.lhs.bias, farkas);
-                }
-            }
-            if (constrain.op == GE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
-                }
-            }
+            setFarkas(constrain, rhs);
         }
         for (Constrain constrain : dependency.lexicographic.constrains.get(lexiDim)) {
-            if (constrain.op == LE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.rhs.bias - constrain.lhs.bias, farkas);
-                }
-            }
-            if (constrain.op == GE || constrain.op == EQ) {
-                IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
-                for (var entry : constrain.lhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas);
-                }
-                for (var entry : constrain.rhs.coefficient.entrySet()) {
-                    getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas);
-                }
-                if (constrain.lhs.bias - constrain.rhs.bias != 0) {
-                    getExp("$", rhs).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
-                }
-            }
+            setFarkas(constrain, rhs);
         }
         for (String varName : lhs.keySet()) {
             if (!varName.equals("$")) {
@@ -312,6 +245,33 @@ public class Schedule {
         for (var entry : rhs.entrySet()) {
             if (!lhs.containsKey(entry.getKey())) {
                 cplex.addEq(entry.getValue(), 0);
+            }
+        }
+    }
+
+    void setFarkas(Constrain constrain, HashMap<String, IloLinearNumExpr> collect) throws IloException {
+        if (constrain.op == LE || constrain.op == EQ) {
+            IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+            for (var entry : constrain.rhs.coefficient.entrySet()) {
+                getExp(entry.getKey(), collect).addTerm(entry.getValue(), farkas);
+            }
+            for (var entry : constrain.lhs.coefficient.entrySet()) {
+                getExp(entry.getKey(), collect).addTerm(-entry.getValue(), farkas);
+            }
+            if (constrain.lhs.bias - constrain.rhs.bias != 0) {
+                getExp("$", collect).addTerm(constrain.rhs.bias - constrain.lhs.bias, farkas);
+            }
+        }
+        if (constrain.op == GE || constrain.op == EQ) {
+            IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+            for (var entry : constrain.lhs.coefficient.entrySet()) {
+                getExp(entry.getKey(), collect).addTerm(entry.getValue(), farkas);
+            }
+            for (var entry : constrain.rhs.coefficient.entrySet()) {
+                getExp(entry.getKey(), collect).addTerm(-entry.getValue(), farkas);
+            }
+            if (constrain.lhs.bias - constrain.rhs.bias != 0) {
+                getExp("$", collect).addTerm(constrain.lhs.bias - constrain.rhs.bias, farkas);
             }
         }
     }
@@ -372,5 +332,20 @@ public class Schedule {
         } else {
             return varName;
         }
+    }
+
+    public void transform(Coordinates coordinates) {
+        int row = coefficient.get(coordinates).size() - 1;
+        int col = coefficientAns.get(coordinates).size();
+        Matrix coefficientMatrix = new Matrix(row, col);
+        for (int i = 0; i < row; ++i) {
+            var list = coefficientAns.get(coordinates).get(i);
+            for (int j = 0; j < col; ++j) {
+                coefficientMatrix.setElement(i, j, new Fraction(list.get(j)));
+            }
+        }
+        transforms.put(coordinates, coefficientMatrix);
+        transformInverses.put(coordinates, coefficientMatrix.inverse());
+        hermites.put(coordinates, coefficientMatrix.getHermite());
     }
 }

@@ -17,15 +17,21 @@ import src.optimize.RegAllocation.RegAllocation;
 import src.optimize.SCCP.SCCP;
 import src.parser.MxLexer;
 import src.parser.MxParser;
+import src.polyhedral.extract.Index;
 import src.polyhedral.matrix.Fraction;
 import src.polyhedral.matrix.Matrix;
+import src.polyhedral.schedule.FourierMotzkin;
 import src.semantic.Semantic;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
+
+import static test.TestASM.testASM;
 
 //import static test.TestIR.testIR;
 //import static test.TestIR.testIR;
@@ -35,6 +41,23 @@ import java.util.Scanner;
 public class Main {
 
     public static void main(String[] args) throws Exception {
+//        Matrix t = new Matrix(3, 3);
+//        t.setElement(0, 0, new Fraction(2));
+//        t.setElement(0, 1, new Fraction(6));
+//        t.setElement(0, 2, new Fraction(1));
+//        t.setElement(1, 0, new Fraction(4));
+//        t.setElement(1, 1, new Fraction(7));
+//        t.setElement(1, 2, new Fraction(7));
+//        t.setElement(2, 0, new Fraction(0));
+//        t.setElement(2, 1, new Fraction(0));
+//        t.setElement(2, 2, new Fraction(1));
+//        List<Index> p = new ArrayList<>();
+//        p.add(new Index("i", 1, 10000, 1));
+//        p.add(new Index("j", 1, 1000, 1));
+//        p.add(new Index("j", 1, 100, 1));
+//        FourierMotzkin f = new FourierMotzkin(p, t);
+
+
         Scanner scanner = new Scanner(System.in);
         try {
             String name = "./src/test";
@@ -103,6 +126,7 @@ public class Main {
         }
         //testSemantic();
         //testIR();
+        //testASM();
     }
 }
 
@@ -130,7 +154,7 @@ public class Main {
 //
 //        // 定义目标函数表达式
 //        IloLinearNumExpr target = cplex.linearNumExpr();
-//        target.addTerm(1,x1);  // addTerm(a,b) 是指将 a*b 追加到表达式中
+//        target.addTerm(1,x1);  // addTerm(a.ll,b) 是指将 a.ll*b 追加到表达式中
 //        target.addTerm(2,x2);
 //        target.addTerm(3,x3);
 //
@@ -143,17 +167,17 @@ public class Main {
 //        expr1.addTerm(1,x1);
 //        expr1.addTerm(2,x2);
 //        expr1.addTerm(1,x3);
-//        cplex.addLe(expr1,100);  // addLe(a,b)  代表令 a <= b
+//        cplex.addLe(expr1,100);  // addLe(a.ll,b)  代表令 a.ll <= b
 //        // 约束2：X1+X2-2*X3 >= 10
 //        IloLinearNumExpr expr2 = cplex.linearNumExpr();
 //        expr2.addTerm(1,x1);
 //        expr2.addTerm(1,x2);
 //        expr2.addTerm(-2,x3);
-//        cplex.addGe(expr2,10);   // addGe(a,b)  代表令 a >= b
+//        cplex.addGe(expr2,10);   // addGe(a.ll,b)  代表令 a.ll >= b
 //        // 约束3 ： x3 = 5
 //        // （由于声明x3变量的时候范围已经限制在5~5之间，所以这里其实没有必有再写了
 //        // 但是为了让大家了解addEq的用法，在这里还是演示一下）
-//        cplex.addEq(x3,5);    // addGe(a,b)  代表令 a = b
+//        cplex.addEq(x3,5);    // addGe(a.ll,b)  代表令 a.ll = b
 //
 //        // 激动人心的求解时刻!
 //        // 只需要调用cplex.solve()即可 ，返回值为是否找到解
