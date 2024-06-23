@@ -2,7 +2,7 @@ package src.polyhedral.schedule;
 
 import ilog.concert.IloException;
 import ilog.concert.IloLinearNumExpr;
-import ilog.concert.IloNumVar;
+import ilog.concert.IloIntVar;
 import ilog.cplex.IloCplex;
 import src.polyhedral.dependency.Constrain;
 import src.polyhedral.dependency.Dependency;
@@ -12,6 +12,9 @@ import src.polyhedral.extract.Index;
 import src.polyhedral.matrix.Fraction;
 import src.polyhedral.matrix.Matrix;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,16 +23,15 @@ import static src.polyhedral.dependency.Constrain.*;
 
 public class Schedule {
 
-    private Model model;
+    public Model model;
     private IloCplex cplex;
-    private HashMap<Coordinates, List<IloNumVar>> coefficient;
-    private IloNumVar costW;
+    private HashMap<Coordinates, List<IloIntVar>> coefficient;
+    private IloIntVar costW;
     private HashMap<Coordinates, List<List<Integer>>> coefficientAns;
     public HashMap<Coordinates, Matrix> transforms;
     public HashMap<Coordinates, Matrix> transformInverses;
     public HashMap<Coordinates, Matrix> hermites;
     public FourierMotzkin fourierMotzkin;
-
 
     public Schedule(Model model_) {
         model = model_;
@@ -46,14 +48,14 @@ public class Schedule {
             // set undetermined coefficient
             for (var assign : model.domain.stmtList) {
                 IloLinearNumExpr expr = cplex.linearNumExpr();
-                List<IloNumVar> tmp = new ArrayList<>();
+                List<IloIntVar> tmp = new ArrayList<>();
                 dim = assign.coordinates.dim;
                 for (int i = 0; i < assign.coordinates.dim; ++i) { // the last term is bias coefficient
-                    IloNumVar x = cplex.intVar(0, Integer.MAX_VALUE);
+                    IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
                     tmp.add(x);
                     expr.addTerm(1, x);
                 }
-                IloNumVar x = cplex.intVar(0, Integer.MAX_VALUE);
+                IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
                 tmp.add(x); // bias
                 coefficient.put(assign.coordinates, tmp);
                 coefficientAns.put(assign.coordinates, new ArrayList<>());
@@ -70,8 +72,8 @@ public class Schedule {
             IloLinearNumExpr target = cplex.linearNumExpr();
             target.addTerm(100000, costW);
             for (var list : coefficient.values()) {
-                for (var iloNumVar : list) {
-                    target.addTerm(1, iloNumVar);
+                for (var iloIntVar : list) {
+                    target.addTerm(1, iloIntVar);
                 }
             }
             cplex.addMinimize(target);
@@ -96,8 +98,8 @@ public class Schedule {
                 double x_value = cplex.getValue(costW);
                 System.err.println("c = " + x_value);
                 for (var list : coefficient.values()) {
-                    for (var iloNumVar : list) {
-                        x_value = cplex.getValue(iloNumVar);
+                    for (var iloIntVar : list) {
+                        x_value = cplex.getValue(iloIntVar);
                         System.err.println("c = " + x_value);
                     }
                 }
@@ -119,7 +121,7 @@ public class Schedule {
         } catch (IloException e) {
             throw new RuntimeException(e);
         }
-        return false;
+        return true;
     }
 
     public void reorder() {
@@ -130,6 +132,7 @@ public class Schedule {
         for (Matrix transformInverse : transformInverses.values()) {
             fourierMotzkin.setTransform(transformInverse);
         }
+        print();
     }
 
     void setDependency(Dependency dependency, int lexiDim) throws IloException {
@@ -155,10 +158,10 @@ public class Schedule {
         for (String varName : lhs.keySet()) {
             if (!varName.equals("$")) {
                 Index index = dependency.indexBound.get(getName(varName));
-                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
                 getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
                 getExp("$", rhs).addTerm(index.boundTo, farkas2);
             }
@@ -166,15 +169,15 @@ public class Schedule {
         for (String varName : rhs.keySet()) {
             if (!lhs.containsKey(varName) && !varName.equals("$")) {
                 Index index = dependency.indexBound.get(getName(varName));
-                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
                 getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
                 getExp("$", rhs).addTerm(index.boundTo, farkas2);
             }
         }
-        IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+        IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
         getExp("$", rhs).addTerm(1, farkas);
         for (var entry : lhs.entrySet()) {
             if (rhs.containsKey(entry.getKey())) {
@@ -214,10 +217,10 @@ public class Schedule {
         for (String varName : lhs.keySet()) {
             if (!varName.equals("$")) {
                 Index index = dependency.indexBound.get(getName(varName));
-                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
                 getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
                 getExp("$", rhs).addTerm(index.boundTo, farkas2);
             }
@@ -225,15 +228,15 @@ public class Schedule {
         for (String varName : rhs.keySet()) {
             if (!lhs.containsKey(varName) && !varName.equals("$")) {
                 Index index = dependency.indexBound.get(getName(varName));
-                IloNumVar farkas1 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
                 getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloNumVar farkas2 = cplex.numVar(0, Integer.MAX_VALUE);
+                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
                 getExp("$", rhs).addTerm(index.boundTo, farkas2);
             }
         }
-        IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+        IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
         getExp("$", rhs).addTerm(1, farkas);
         for (var entry : lhs.entrySet()) {
             if (rhs.containsKey(entry.getKey())) {
@@ -251,7 +254,7 @@ public class Schedule {
 
     void setFarkas(Constrain constrain, HashMap<String, IloLinearNumExpr> collect) throws IloException {
         if (constrain.op == LE || constrain.op == EQ) {
-            IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+            IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
             for (var entry : constrain.rhs.coefficient.entrySet()) {
                 getExp(entry.getKey(), collect).addTerm(entry.getValue(), farkas);
             }
@@ -263,7 +266,7 @@ public class Schedule {
             }
         }
         if (constrain.op == GE || constrain.op == EQ) {
-            IloNumVar farkas = cplex.numVar(0, Integer.MAX_VALUE); // Farkas variable
+            IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
             for (var entry : constrain.lhs.coefficient.entrySet()) {
                 getExp(entry.getKey(), collect).addTerm(entry.getValue(), farkas);
             }
@@ -322,7 +325,7 @@ public class Schedule {
             cplex.addGe(exp, 0);
             expTol.add(exp);
         }
-        cplex.addGe(expTol, 1); // avoid zero-vec
+        cplex.addGe(expTol, 2); // avoid zero-vec
     }
 
     String getName(String varName) {
@@ -347,5 +350,143 @@ public class Schedule {
         transforms.put(coordinates, coefficientMatrix);
         transformInverses.put(coordinates, coefficientMatrix.inverse());
         hermites.put(coordinates, coefficientMatrix.getHermite());
+    }
+
+    public void print() {
+        try {
+            FileOutputStream fileOutputStream = new FileOutputStream("./src/builtin/transfer");
+            PrintStream printStream = new PrintStream(fileOutputStream);
+            System.setOut(printStream);
+            System.out.println("loop transfer:");
+            for (int i = 0; i < fourierMotzkin.indexList.size(); ++i) {
+                System.out.print("new dim" + i + ": f" + i);
+                System.out.print(";   lower bound: MAX{ ");
+                printLowerBound(i);
+                System.out.print("};   upper bound: MIN{ ");
+                printUpperBound(i);
+                System.out.print("};   step: ");
+                for (var matrix : hermites.values()) {
+                    System.out.print(matrix.getElement(i, i));
+                }
+                System.out.print("\n");
+            }
+            for (int i = 0; i < fourierMotzkin.indexList.size(); ++i) {
+                printTransfer(i);
+            }
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void printLowerBound(int num) {
+        var list = fourierMotzkin.lowerBound.get("f" + num);
+        for (int i = 0; i < list.size(); ++i) {
+            boolean flag = true;
+            var affine = list.get(i);
+            for (var entry : affine.coefficient.entrySet()) {
+                if (flag) {
+                    System.out.print("cell(");
+                    flag = false;
+                } else if (!entry.getValue().less(0) && !entry.getValue().equal(0)) {
+                    System.out.print("+");
+                }
+                System.out.print(entry.getValue());
+                System.out.print("*");
+                System.out.print(entry.getKey());
+            }
+            if (affine.bias.less(0) || (affine.bias.equal(0) && flag)) {
+                System.out.print(affine.bias);
+            } else {
+                System.out.print("+" + affine.bias);
+            }
+            if (!affine.coefficient.isEmpty()) {
+                System.out.print(")");
+            }
+            System.out.print("+(");
+            for (var matrix : hermites.values()) {
+                flag = false;
+                for (int j = 0; j < num; ++j) {
+                    if (flag && !matrix.getElement(num, j).less(0)) {
+                        System.out.print("+");
+                    }
+                    flag = true;
+                    System.out.print(matrix.getElement(num, j));
+                    System.out.print("*f" + j);
+                }
+            }
+            System.out.print("-");
+            flag = true;
+            for (var entry : affine.coefficient.entrySet()) {
+                if (flag) {
+                    System.out.print("cell(");
+                    flag = false;
+                } else if (!entry.getValue().less(0) && !entry.getValue().equal(0)) {
+                    System.out.print("+");
+                }
+                System.out.print(entry.getValue());
+                System.out.print("*");
+                System.out.print(entry.getKey());
+            }
+            if (affine.bias.less(0) || (affine.bias.equal(0) && flag)) {
+                System.out.print(affine.bias);
+            } else {
+                System.out.print("+" + affine.bias);
+            }
+            if (!affine.coefficient.isEmpty()) {
+                System.out.print(")");
+            }
+            System.out.print(")%");
+            for (var matrix : hermites.values()) {
+                System.out.print(matrix.getElement(num, num));
+            }
+            System.out.print(", ");
+        }
+    }
+
+    public void printUpperBound(int num) {
+        var list = fourierMotzkin.upperBound.get("f" + num);
+        for (int i = 0; i < list.size(); ++i) {
+            boolean flag = true;
+            var affine = list.get(i);
+            for (var entry : affine.coefficient.entrySet()) {
+                if (flag) {
+                    System.out.print("floor(");
+                    flag = false;
+                } else if (!entry.getValue().less(0) && !entry.getValue().equal(0)) {
+                    System.out.print("+");
+                }
+                System.out.print(entry.getValue());
+                System.out.print("*");
+                System.out.print(entry.getKey());
+            }
+            if (affine.bias.less(0)) {
+                System.out.print(affine.bias);
+            } else {
+                System.out.print("+" + affine.bias);
+            }
+            if (!affine.coefficient.isEmpty()) {
+                System.out.print(")");
+            }
+            System.out.print(", ");
+/////////////////////////////////////////////////
+        }
+    }
+
+    public void printTransfer(int num) {
+        System.out.print("\t\t" + model.domain.indexList.get(num).varName + " -> ");
+        for (var matrix : transformInverses.values()) {
+            boolean flag = false;
+            for (int i = 0; i < matrix.row(); ++i) {
+                if (flag && !matrix.getElement(num, i).less(0)) {
+                    System.out.print(" + ");
+                } else {
+                    System.out.print(" ");
+                }
+                flag = true;
+                System.out.print(matrix.getElement(num, i));
+                System.out.print("*f" + i);
+            }
+        }
+        System.out.print("\n");
     }
 }

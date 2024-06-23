@@ -15,4 +15,9 @@ public class Position {
         line = position.line;
         column = position.column;
     }
+
+    public Position(int line, int column) {
+        this.line = line;
+        this.column = column;
+    }
 }

@@ -6,4 +6,8 @@ public class NumberExp extends Expression {
     public NumberExp(String number) {
         value = Long.parseLong(number);
     }
+
+    public NumberExp(long num) {
+        value = num;
+    }
 }

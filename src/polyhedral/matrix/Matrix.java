@@ -287,7 +287,7 @@ public class Matrix {
                 }
             }
         }
-        return cal;
+        return cal.trans();
     }
 
 

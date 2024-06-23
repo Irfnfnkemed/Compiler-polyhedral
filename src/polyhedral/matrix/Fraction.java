@@ -23,6 +23,14 @@ public class Fraction {
         this.denominator = fraction.denominator;
     }
 
+    public int numerator() {
+        return (int) numerator;
+    }
+
+    public int denominator() {
+        return (int) denominator;
+    }
+
     private void simplify() {
         if (numerator == 0) {
             denominator = 1;
@@ -30,6 +38,10 @@ public class Fraction {
             long gcd = gcd(numerator, denominator);
             numerator /= gcd;
             denominator /= gcd;
+        }
+        if (denominator < 0) {
+            denominator = -denominator;
+            numerator = -numerator;
         }
     }
 
@@ -96,8 +108,24 @@ public class Fraction {
     }
 
 
+    public int toIntWithMul(int mul) {
+        if (denominator < 0) {
+            denominator = -denominator;
+            numerator = -numerator;
+        }
+        if (mul % denominator != 0) {
+            throw new ArithmeticException("Cannot transform to Integer.");
+        }
+        return (int) (numerator * mul / denominator);
+    }
+
     @Override
     public String toString() {
+        if (denominator == 1) {
+            return numerator + "";
+        } else if (denominator == -1) {
+            return -numerator + "";
+        }
         return numerator + "/" + denominator;
     }
 }
