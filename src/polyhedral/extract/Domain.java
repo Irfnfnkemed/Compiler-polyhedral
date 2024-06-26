@@ -6,24 +6,27 @@ import src.AST.statement.Statement;
 import src.AST.statement.loopStatement.ForLoop;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Stack;
 
 public class Domain {
     public List<Index> indexList;
     public List<Assign> stmtList;
-    private Stack<Object> result;
+    public HashSet<String> parameters;
+    private long result;
     private Coordinates curCoordinates;
 
 
     public Domain() {
         indexList = new ArrayList<>();
         stmtList = new ArrayList<>();
-        result = new Stack<>();
         curCoordinates = new Coordinates();
+        parameters = new HashSet<>();
     }
 
     public boolean getLoop(ForLoop forLoop) {
+        Index indexNew = new Index();
         // check init-exp
         if (forLoop.parallelExp != null) {
             return false;
@@ -32,44 +35,84 @@ public class Domain {
             return false;
         }
         InitVariable indexInit = forLoop.variableDef.initVariablelist.get(0);
-        if (!getNumber(indexInit.exp)) {
-            return false;// TODO: Extend the condition to Variable bound
+        Affine indexFromAffine = new Affine();
+        if (!getAddrAffine(indexInit.exp, 1, indexFromAffine)) {
+            return false;
+        }
+        indexNew.boundFrom = indexFromAffine;
+        if (!indexFromAffine.isConst()) {
+            parameters.addAll(indexFromAffine.coefficient.keySet());
         }
         String index = indexInit.variableName;
-        long boundFrom = (long) result.pop();
+        indexNew.varName = index;
+
         // check cond-exp
-        long boundTo = 0;
         if (!(forLoop.conditionExp instanceof BinaryExp cond)) {
             return false;
         }
-        int offsetBoundTo = 0; // TODO: Now only support like: i < const.
-        switch (cond.op) {
-            case "<" -> offsetBoundTo = -1;
-            case ">" -> offsetBoundTo = 1;
-            case "<=", ">=" -> {
-            }
-            default -> {
-                return false;
-            }
+        boolean upperBound = false;
+        Affine indexToLhsAffine = new Affine();
+        if (!getAddrAffine(cond.lhs, 1, indexToLhsAffine)) {
+            return false;
         }
-        if (cond.lhs instanceof VariableLhsExp variable) {
-            if (!(variable.variableName.equals(index))) {
-                return false;
+        Affine indexToRhsAffine = new Affine();
+        if (!getAddrAffine(cond.rhs, 1, indexToRhsAffine)) {
+            return false;
+        }
+        indexToLhsAffine.merge(indexToRhsAffine, -1);
+        if (!indexToLhsAffine.coefficient.containsKey(index)) {
+            return false;
+        }
+        if (indexToLhsAffine.coefficient.get(index) == 1) {
+            indexToLhsAffine.coefficient.remove(index);
+            indexToLhsAffine.mul(-1);
+            switch (cond.op) {
+                case "<" -> {
+                    upperBound = true;
+                    indexToLhsAffine.addBias(-1);
+                }
+                case ">" -> {
+                    upperBound = false;
+                    indexToLhsAffine.addBias(1);
+                }
+                case "<=" -> {
+                    upperBound = true;
+                }
+                case ">=" -> {
+                    upperBound = false;
+                }
+                default -> {
+                    return false;
+                }
             }
-            if (!getNumber(cond.rhs)) {
-                return false;
+            indexNew.boundTo = indexToLhsAffine;
+        } else if (indexToLhsAffine.coefficient.get(index) == -1) {
+            indexToLhsAffine.coefficient.remove(index);
+            switch (cond.op) {
+                case ">" -> {
+                    upperBound = true;
+                    indexToLhsAffine.addBias(-1);
+                }
+                case "<" -> {
+                    upperBound = false;
+                    indexToLhsAffine.addBias(1);
+                }
+                case ">=" -> {
+                    upperBound = true;
+                }
+                case "<=" -> {
+                    upperBound = false;
+                }
+                default -> {
+                    return false;
+                }
             }
-            boundTo = (long) result.pop() + offsetBoundTo;
-        } else if (getNumber(cond.lhs)) {
-            boundTo = (long) result.pop() - offsetBoundTo;
-            if (!(cond.rhs instanceof VariableLhsExp variable)) {
-                return false;
-            }
-            if (!(variable.variableName.equals(index))) {
-                return false;
-            }
+            indexNew.boundTo = indexToLhsAffine;
         } else {
             return false;
+        }
+        if (!indexToLhsAffine.isConst()) {
+            parameters.addAll(indexToLhsAffine.coefficient.keySet());
         }
 
         // check step-exp
@@ -114,9 +157,9 @@ public class Domain {
                     if (!getNumber(stepExp.rhs)) {
                         return false;
                     }
-                    step = add * (long) result.pop();
+                    step = add * result;
                 } else if (getNumber(stepExp.lhs)) {
-                    step = add * (long) result.pop();
+                    step = add * result;
                     if (add == -1) {
                         return false;
                     }
@@ -129,7 +172,10 @@ public class Domain {
                 }
             }
         }
-        Index indexNew = new Index(index, boundFrom, boundTo, step);
+        indexNew.step = step;
+        if (step == 0 || (step > 0 && !upperBound) || (step < 0 && upperBound)) {
+            return false;
+        }
         indexList.add(indexNew);
         curCoordinates.push(indexNew);
         // check body
@@ -169,14 +215,14 @@ public class Domain {
 
     public boolean getNumber(Expression exp) {
         if (exp instanceof NumberExp) {
-            result.push(((NumberExp) exp).value);
+            result = ((NumberExp) exp).value;
             return true;
         } else if (exp instanceof UnaryExp unary) {
             if (!unary.op.equals("-")) {
                 return false;
             }
             if (unary.exp instanceof NumberExp) {
-                result.push(-((NumberExp) unary.exp).value);
+                result = -((NumberExp) unary.exp).value;
                 return true;
             } else {
                 return false;
@@ -187,7 +233,6 @@ public class Domain {
     }
 
     public boolean getAssign(Expression exp, Assign assign) {
-        result.clear();
         if (exp instanceof PrefixLhsExp preExp) {
             if (!(preExp.exp instanceof ArrayElementLhsExp)) {
                 return false;
@@ -265,7 +310,7 @@ public class Domain {
 
     public boolean getAddrAffine(Expression exp, long constWeight, Affine affine) {
         if (getNumber(exp)) {
-            affine.addBias(constWeight * (long) result.pop());
+            affine.addBias(constWeight * result);
             return true;
         }
         if (exp instanceof VariableLhsExp) {
@@ -285,7 +330,7 @@ public class Domain {
                 case "*" -> {
                     if (getNumber(((BinaryExp) exp).lhs)) {
                         Affine tmp = new Affine();
-                        if (getAddrAffine(((BinaryExp) exp).rhs, constWeight * (long) result.pop(), tmp)) {
+                        if (getAddrAffine(((BinaryExp) exp).rhs, constWeight * result, tmp)) {
                             affine.merge(tmp, 1);
                             return true;
                         } else {
@@ -294,7 +339,7 @@ public class Domain {
                     }
                     if (getNumber(((BinaryExp) exp).rhs)) {
                         Affine tmp = new Affine();
-                        if (getAddrAffine(((BinaryExp) exp).lhs, constWeight * (long) result.pop(), tmp)) {
+                        if (getAddrAffine(((BinaryExp) exp).lhs, constWeight * result, tmp)) {
                             affine.merge(tmp, 1);
                             return true;
                         } else {

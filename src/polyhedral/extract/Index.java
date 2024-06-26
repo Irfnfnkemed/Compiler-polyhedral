@@ -2,17 +2,19 @@ package src.polyhedral.extract;
 
 public class Index {
     public String varName;
-    public long boundFrom, boundTo;
+    public Affine boundFrom, boundTo;
     public long step;
 
-    public Index(String varName_, long boundFrom_, long boundTo_, long step_) {
-        varName = varName_;
-        boundFrom = boundFrom_;
-        step = step_;
-        if (step > 0) {
-            boundTo = (boundTo_ - boundFrom_) / step_ * step_ + boundFrom_;
-        } else {
-            boundTo = (boundFrom_ - boundTo_) / (-step_) * step_ + boundFrom_;
+    public Index() {
+    }
+
+    public void Simplify() {
+        if (boundFrom.isConst() && boundTo.isConst()) {
+            if (step > 0) {
+                boundTo.bias = (boundTo.bias - boundFrom.bias) / step * step + boundFrom.bias;
+            } else {
+                boundTo.bias = (boundFrom.bias - boundTo.bias) / (-step) * step + boundFrom.bias;
+            }
         }
     }
 }

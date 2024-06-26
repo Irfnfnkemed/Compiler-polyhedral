@@ -42,7 +42,15 @@ public class Affine {
         for (var entry : obj.coefficient.entrySet()) {
             coefficient.merge(entry.getKey(), entry.getValue() * mul, Long::sum);
         }
+        coefficient.entrySet().removeIf(entry -> entry.getValue() == 0);
         bias = bias + obj.bias * mul;
+    }
+
+    public void mul(long mul) {
+        for (var entry : coefficient.entrySet()) {
+            entry.setValue(entry.getValue() * mul);
+        }
+        bias *= mul;
     }
 
     public boolean isConst() {
