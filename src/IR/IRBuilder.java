@@ -418,6 +418,7 @@ public class IRBuilder implements ASTVisitor {
             f = m.setDependency();
             Schedule s = new Schedule(m);
         } catch (RuntimeException o) {
+            throw new RuntimeException();
         }
         ((FuncDef) now).pushLoop();
         var tmp = ((FuncDef) now).getLoop();

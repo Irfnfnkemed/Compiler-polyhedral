@@ -25,41 +25,38 @@ public class Schedule {
 
     public Model model;
     private IloCplex cplex;
-    private HashMap<Coordinates, List<IloIntVar>> coefficient;
-    private IloIntVar costW;
-    private HashMap<Coordinates, List<List<Integer>>> coefficientAns;
-    public HashMap<Coordinates, Matrix> transforms;
-    public HashMap<Coordinates, Matrix> transformInverses;
-    public HashMap<Coordinates, Matrix> hermites;
+    private List<IloIntVar> coefficient;
+    private HashMap<Coordinates, IloIntVar> bias;
+    public IloIntVar costW;
+    public HashMap<Coordinates, List<Integer>> transformationBias;
+    public Matrix transformation;
+    public Matrix transformInverse;
+    public Matrix hermite;
     public FourierMotzkin fourierMotzkin;
+    private int nowRow = 0;
 
     public Schedule(Model model_) {
+        int dim = model_.indexBound.size();
         model = model_;
-        coefficient = new HashMap<>();
-        coefficientAns = new HashMap<>();
-        transforms = new HashMap<>();
-        transformInverses = new HashMap<>();
-        hermites = new HashMap<>();
+        coefficient = new ArrayList<>();
+        transformation = new Matrix(dim, dim);
+        bias = new HashMap<>();
+        transformationBias = new HashMap<>();
         try {
             cplex = new IloCplex();
             costW = cplex.intVar(0, Integer.MAX_VALUE);
             cplex.addGe(costW, 1);
-            int dim = 0;
             // set undetermined coefficient
-            for (var assign : model.domain.stmtList) {
-                IloLinearNumExpr expr = cplex.linearNumExpr();
-                List<IloIntVar> tmp = new ArrayList<>();
-                dim = assign.coordinates.dim;
-                for (int i = 0; i < assign.coordinates.dim; ++i) { // the last term is bias coefficient
-                    IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
-                    tmp.add(x);
-                    expr.addTerm(1, x);
-                }
+            IloLinearNumExpr expr = cplex.linearNumExpr();
+            for (int i = 0; i < dim; ++i) {
                 IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
-                tmp.add(x); // bias
-                coefficient.put(assign.coordinates, tmp);
-                coefficientAns.put(assign.coordinates, new ArrayList<>());
-                cplex.addGe(expr, 1); // avoid zero-vec
+                coefficient.add(x);
+                expr.addTerm(1, x);
+            }
+            cplex.addGe(expr, 1); // avoid zero-vec
+            for (var assign : model.domain.stmtList) {
+                IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
+                bias.put(assign.coordinates, x); // bias
             }
             // set dependency and cost bound
             for (Dependency dependency : model.dependencies) {
@@ -71,10 +68,8 @@ public class Schedule {
             // set target (min-lexi of cost function)
             IloLinearNumExpr target = cplex.linearNumExpr();
             target.addTerm(100000, costW);
-            for (var list : coefficient.values()) {
-                for (var iloIntVar : list) {
-                    target.addTerm(1, iloIntVar);
-                }
+            for (var iloIntVar : coefficient) {
+                target.addTerm(1, iloIntVar);
             }
             cplex.addMinimize(target);
             for (int i = 0; i < dim; ++i) {
@@ -92,46 +87,53 @@ public class Schedule {
         try {
             boolean isSolve = cplex.solve();
             if (isSolve) {
+                ///////////////////////////////////////debug
                 //如果找到了解
                 double result = cplex.getObjValue();  // 获取解（目标函数最大值）
                 System.out.println("目标函数最大值为：" + result);
                 double x_value = cplex.getValue(costW);
-                System.err.println("c = " + x_value);
-                for (var list : coefficient.values()) {
-                    for (var iloIntVar : list) {
-                        x_value = cplex.getValue(iloIntVar);
-                        System.err.println("c = " + x_value);
-                    }
+                System.err.println("s = " + x_value);
+                for (var iloIntVar : coefficient) {
+                    x_value = cplex.getValue(iloIntVar);
+                    System.err.println("c = " + x_value);
+                }
+                for (var entry : bias.entrySet()) {
+                    x_value = cplex.getValue(entry.getValue());
+                    System.err.println("b = " + x_value);
                 }
                 System.err.println("成功！");
-                for (var entry : coefficient.entrySet()) {
-                    List<Integer> tmp = new ArrayList<>();
-                    for (var x : entry.getValue()) {
-                        tmp.add((int) cplex.getValue(x));
+                //////////////////////////////////////////////
+                for (int i = 0; i < coefficient.size(); ++i) {
+                    int value = (int) Math.round(cplex.getValue(coefficient.get(i)));
+                    transformation.setElement(nowRow, i, new Fraction(value));
+                }
+                for (var entry : bias.entrySet()) {
+                    if (transformationBias.containsKey(entry.getKey())) {
+                        transformationBias.get(entry.getKey()).add((int) Math.round(cplex.getValue(entry.getValue())));
+                    } else {
+                        List<Integer> tmp = new ArrayList<>();
+                        tmp.add((int) Math.round(cplex.getValue(entry.getValue())));
+                        transformationBias.put(entry.getKey(), tmp);
                     }
-                    coefficientAns.get(entry.getKey()).add(tmp);
                 }
-                for (Coordinates coordinates : coefficient.keySet()) {
-                    setOrthogonal(coordinates);
-                }
+                ++nowRow;
+                setOrthogonal();
+                return true;
             } else {
                 // 如果找不到解
                 System.err.println("失败！");
+                return false;
             }
         } catch (IloException e) {
             throw new RuntimeException(e);
         }
-        return true;
     }
 
     public void reorder() {
-        for (Coordinates coordinates : coefficientAns.keySet()) {
-            transform(coordinates);
-        }
+        transformInverse = transformation.inverse();
+        hermite = transformation.getHermite();
         fourierMotzkin = new FourierMotzkin(model.domain.indexList);
-        for (Matrix transformInverse : transformInverses.values()) {
-            fourierMotzkin.setTransform(transformInverse);
-        }
+        fourierMotzkin.setTransform(transformInverse);
         print();
     }
 
@@ -140,15 +142,13 @@ public class Schedule {
         HashMap<String, IloLinearNumExpr> lhs = new HashMap<>(); // "$" represents constant
         HashMap<String, IloLinearNumExpr> rhs = new HashMap<>(); // "$" represents constant
         for (int i = 0; i < dependency.coordinatesTo.dim; ++i) {
-            getExp(dependency.coordinatesTo.varName.get(i) + "#" + dependency.id, lhs)
-                    .addTerm(1, coefficient.get(dependency.coordinatesTo).get(i));
+            getExp(dependency.coordinatesTo.varName.get(i) + "#" + dependency.id, lhs).addTerm(1, coefficient.get(i));
         }
-        getExp("$", lhs).addTerm(1, coefficient.get(dependency.coordinatesTo).get(dependency.coordinatesTo.dim));
+        getExp("$", lhs).addTerm(1, bias.get(dependency.coordinatesTo));
         for (int i = 0; i < dependency.coordinatesFrom.dim; ++i) {
-            getExp(dependency.coordinatesFrom.varName.get(i), lhs)
-                    .addTerm(-1, coefficient.get(dependency.coordinatesFrom).get(i));
+            getExp(dependency.coordinatesFrom.varName.get(i), lhs).addTerm(-1, coefficient.get(i));
         }
-        getExp("$", lhs).addTerm(-1, coefficient.get(dependency.coordinatesFrom).get(dependency.coordinatesFrom.dim));
+        getExp("$", lhs).addTerm(-1, bias.get(dependency.coordinatesFrom));
         for (Constrain constrain : dependency.constrains) {
             setFarkas(constrain, rhs);
         }
@@ -199,15 +199,13 @@ public class Schedule {
         HashMap<String, IloLinearNumExpr> rhs = new HashMap<>(); // "$" represents constant
         getExp("$", lhs).addTerm(1, costW);
         for (int i = 0; i < dependency.coordinatesTo.dim; ++i) {
-            getExp(dependency.coordinatesTo.varName.get(i) + "#" + dependency.id, lhs)
-                    .addTerm(-1, coefficient.get(dependency.coordinatesTo).get(i));
+            getExp(dependency.coordinatesTo.varName.get(i) + "#" + dependency.id, lhs).addTerm(-1, coefficient.get(i));
         }
-        getExp("$", lhs).addTerm(-1, coefficient.get(dependency.coordinatesTo).get(dependency.coordinatesTo.dim));
+        getExp("$", lhs).addTerm(-1, bias.get(dependency.coordinatesTo));
         for (int i = 0; i < dependency.coordinatesFrom.dim; ++i) {
-            getExp(dependency.coordinatesFrom.varName.get(i), lhs)
-                    .addTerm(1, coefficient.get(dependency.coordinatesFrom).get(i));
+            getExp(dependency.coordinatesFrom.varName.get(i), lhs).addTerm(1, coefficient.get(i));
         }
-        getExp("$", lhs).addTerm(1, coefficient.get(dependency.coordinatesFrom).get(dependency.coordinatesFrom.dim));
+        getExp("$", lhs).addTerm(1, bias.get(dependency.coordinatesFrom));
         for (Constrain constrain : dependency.constrains) {
             setFarkas(constrain, rhs);
         }
@@ -286,14 +284,12 @@ public class Schedule {
         return map.get(varName);
     }
 
-    Matrix orthogonalSpace(Coordinates coordinates) {
-        int col = coefficient.get(coordinates).size() - 1;
-        int row = coefficientAns.get(coordinates).size();
-        Matrix Hs = new Matrix(row, col);
-        for (int i = 0; i < row; ++i) {
-            var tmp = coefficientAns.get(coordinates).get(i);
+    Matrix orthogonalSpace() {
+        int col = model.indexBound.size();
+        Matrix Hs = new Matrix(nowRow, col);
+        for (int i = 0; i < nowRow; ++i) {
             for (int j = 0; j < col; ++j) {
-                Hs.setElement(i, j, new Fraction(tmp.get(j)));
+                Hs.setElement(i, j, new Fraction(transformation.getElement(i, j)));
             }
         }
         Matrix identity = new Matrix(col, col);
@@ -312,20 +308,19 @@ public class Schedule {
         return (identity.sub((Hst.mul(inv).mul(Hs)))).scalarMul(det);
     }
 
-    void setOrthogonal(Coordinates coordinates) throws IloException {
-        Matrix Hs = orthogonalSpace(coordinates);
+    void setOrthogonal() throws IloException {
+        Matrix Hs = orthogonalSpace();
         var valid = Hs.findDependent();
         var expTol = cplex.linearNumExpr();
-        var list = coefficient.get(coordinates);
         for (int i : valid) {
             var exp = cplex.linearNumExpr();
-            for (int j = 0; j < list.size() - 1; ++j) {
-                exp.addTerm(Hs.getElement(i, j).toInt(), list.get(j));
+            for (int j = 0; j < coefficient.size(); ++j) {
+                exp.addTerm(Hs.getElement(i, j).toInt(), coefficient.get(j));
             }
             cplex.addGe(exp, 0);
             expTol.add(exp);
         }
-        cplex.addGe(expTol, 2); // avoid zero-vec
+        cplex.addGe(expTol, 1); // avoid zero-vec
     }
 
     String getName(String varName) {
@@ -335,21 +330,6 @@ public class Schedule {
         } else {
             return varName;
         }
-    }
-
-    public void transform(Coordinates coordinates) {
-        int row = coefficient.get(coordinates).size() - 1;
-        int col = coefficientAns.get(coordinates).size();
-        Matrix coefficientMatrix = new Matrix(row, col);
-        for (int i = 0; i < row; ++i) {
-            var list = coefficientAns.get(coordinates).get(i);
-            for (int j = 0; j < col; ++j) {
-                coefficientMatrix.setElement(i, j, new Fraction(list.get(j)));
-            }
-        }
-        transforms.put(coordinates, coefficientMatrix);
-        transformInverses.put(coordinates, coefficientMatrix.inverse());
-        hermites.put(coordinates, coefficientMatrix.getHermite());
     }
 
     public void print() {
@@ -365,9 +345,7 @@ public class Schedule {
                 System.out.print("};   upper bound: MIN{ ");
                 printUpperBound(i);
                 System.out.print("};   step: ");
-                for (var matrix : hermites.values()) {
-                    System.out.print(matrix.getElement(i, i));
-                }
+                System.out.print(hermite.getElement(i, i));
                 System.out.print("\n");
             }
             for (int i = 0; i < fourierMotzkin.indexList.size(); ++i) {
@@ -403,16 +381,14 @@ public class Schedule {
                 System.out.print(")");
             }
             System.out.print("+(");
-            for (var matrix : hermites.values()) {
-                flag = false;
-                for (int j = 0; j < num; ++j) {
-                    if (flag && !matrix.getElement(num, j).less(0)) {
-                        System.out.print("+");
-                    }
-                    flag = true;
-                    System.out.print(matrix.getElement(num, j));
-                    System.out.print("*f" + j);
+            flag = false;
+            for (int j = 0; j < num; ++j) {
+                if (flag && !hermite.getElement(num, j).less(0)) {
+                    System.out.print("+");
                 }
+                flag = true;
+                System.out.print(hermite.getElement(num, j));
+                System.out.print("*f" + j);
             }
             System.out.print("-");
             flag = true;
@@ -436,9 +412,7 @@ public class Schedule {
                 System.out.print(")");
             }
             System.out.print(")%");
-            for (var matrix : hermites.values()) {
-                System.out.print(matrix.getElement(num, num));
-            }
+            System.out.print(hermite.getElement(num, num));
             System.out.print(", ");
         }
     }
@@ -474,18 +448,16 @@ public class Schedule {
 
     public void printTransfer(int num) {
         System.out.print("\t\t" + model.domain.indexList.get(num).varName + " -> ");
-        for (var matrix : transformInverses.values()) {
-            boolean flag = false;
-            for (int i = 0; i < matrix.row(); ++i) {
-                if (flag && !matrix.getElement(num, i).less(0)) {
-                    System.out.print(" + ");
-                } else {
-                    System.out.print(" ");
-                }
-                flag = true;
-                System.out.print(matrix.getElement(num, i));
-                System.out.print("*f" + i);
+        boolean flag = false;
+        for (int i = 0; i < transformInverse.row(); ++i) {
+            if (flag && !transformInverse.getElement(num, i).less(0)) {
+                System.out.print(" + ");
+            } else {
+                System.out.print(" ");
             }
+            flag = true;
+            System.out.print(transformInverse.getElement(num, i));
+            System.out.print("*f" + i);
         }
         System.out.print("\n");
     }
