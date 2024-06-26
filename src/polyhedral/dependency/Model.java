@@ -47,9 +47,9 @@ public class Model {
                 for (var memWriteTo : entry.getValue()) {
                     Dependency dependency = new Dependency(memWriteFrom, memWriteTo, indexBound);
                     if (dependency.valid) {
-                        if (dependency.lexicographic.valid()) {
+                     //   if (dependency.lexicographic.valid()) {
                             dependencies.add(dependency);
-                        }
+                      //  }
                     } else {
                         return false;
                     }
@@ -61,9 +61,9 @@ public class Model {
                     for (var memReadFrom : read.get(entry.getKey())) {
                         Dependency dependency = new Dependency(memReadFrom, memWriteTo, indexBound);
                         if (dependency.valid) {
-                            if (dependency.lexicographic.valid()) {
+                           // if (dependency.lexicographic.valid()) {
                                 dependencies.add(dependency);
-                            }
+                         //   }
                         } else {
                             return false;
                         }
@@ -74,9 +74,9 @@ public class Model {
                     for (var memReadTo : read.get(entry.getKey())) {
                         Dependency dependency = new Dependency(memWriteFrom, memReadTo, indexBound);
                         if (dependency.valid) {
-                            if (dependency.lexicographic.valid()) {
+                          //  if (dependency.lexicographic.valid()) {
                                 dependencies.add(dependency);
-                            }
+                         //   }
                         } else {
                             return false;
                         }

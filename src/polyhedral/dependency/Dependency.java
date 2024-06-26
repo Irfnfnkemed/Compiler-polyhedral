@@ -29,10 +29,6 @@ public class Dependency {
         indexBound = indexBound_;
         id = cnt++;
         for (int i = 0; i < to.addr.size(); ++i) {
-            if (to.addr.get(i).coefficient.size() >= 2) {
-                valid = false;
-                return;
-            }
             Affine lhs = new Affine(to.addr.get(i), id);
             Affine rhs = new Affine(from.addr.get(i));
             rhs.addBias(-lhs.bias);
