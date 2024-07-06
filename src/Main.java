@@ -20,7 +20,7 @@ import src.parser.MxParser;
 import src.polyhedral.extract.Index;
 import src.polyhedral.matrix.Fraction;
 import src.polyhedral.matrix.Matrix;
-import src.polyhedral.schedule.FourierMotzkin;
+//import src.polyhedral.schedule.FourierMotzkin;
 import src.semantic.Semantic;
 
 import java.io.FileInputStream;

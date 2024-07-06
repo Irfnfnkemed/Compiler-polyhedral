@@ -8,7 +8,7 @@ public class Index {
     public Index() {
     }
 
-    public void Simplify() {
+    public void simplify() {
         if (boundFrom.isConst() && boundTo.isConst()) {
             if (step > 0) {
                 boundTo.bias = (boundTo.bias - boundFrom.bias) / step * step + boundFrom.bias;

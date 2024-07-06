@@ -1,5 +1,6 @@
 package src.polyhedral.schedule;
 
+import src.polyhedral.extract.Affine;
 import src.polyhedral.matrix.Fraction;
 
 import java.util.HashMap;
@@ -24,7 +25,7 @@ public class AffineFraction {
 
     public AffineFraction addVarCo(String variable, Fraction coefficient_) {
         if (coefficient.containsKey(variable)) {
-            coefficient.get(variable).add(coefficient_);
+            coefficient.computeIfPresent(variable, (k, tmp) -> tmp.add(coefficient_));
         } else {
             coefficient.put(variable, new Fraction(coefficient_));
         }
@@ -49,6 +50,33 @@ public class AffineFraction {
         } else {
             return new Fraction(0);
         }
+    }
 
+    public AffineFraction merge(AffineFraction obj, Fraction mul) {
+        for (var entry : obj.coefficient.entrySet()) {
+            addVarCo(entry.getKey(), entry.getValue().mul(mul));
+        }
+        bias = bias.add(obj.bias.mul(mul));
+        return this;
+    }
+
+    public AffineFraction mul(Fraction mul) {
+        for (var entry : coefficient.entrySet()) {
+            entry.setValue(entry.getValue().mul(mul));
+        }
+        bias = bias.mul(mul);
+        return this;
+    }
+
+    public AffineFraction div(Fraction div) {
+        for (var entry : coefficient.entrySet()) {
+            entry.setValue(entry.getValue().mul(div));
+        }
+        bias = bias.div(div);
+        return this;
+    }
+
+    public void remove(String varName) {
+        coefficient.remove(varName);
     }
 }

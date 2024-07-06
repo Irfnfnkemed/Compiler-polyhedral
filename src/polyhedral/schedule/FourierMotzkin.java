@@ -21,39 +21,35 @@ public class FourierMotzkin {
 
     }
 
-    void setTransform(Matrix transformInverse){
+    void setTransform(Matrix transformInverse) {
         for (int i = 0; i < transformInverse.row(); ++i) { // set initial constrains
             for (int j = transformInverse.row() - 1; j >= 0; --j) {
                 var coe = transformInverse.getElement(i, j);
-                if (coe.equal(0)) {
-                    continue;
-                } else if (coe.less(0)) {
+                if (!coe.equal(0)) {
                     AffineFraction affine1 = new AffineFraction();
-                    affine1.addBias(new Fraction((int) indexList.get(i).boundTo).div(coe));
+                    var boundTo = indexList.get(i).boundTo;
+                    if (!boundTo.isConst()) {
+                        for (var entry : boundTo.coefficient.entrySet()) {
+                            affine1.addVarCo(entry.getKey(), new Fraction(Math.toIntExact(entry.getValue())).div(coe));
+                        }
+                    }
+                    affine1.addBias(new Fraction((int) boundTo.bias).div(coe));
                     for (int k = j - 1; k >= 0; --k) {
                         affine1.addVarCo("f" + k, transformInverse.getElement(i, k).neg().div(coe));
                     }
-                    getList("f" + j, true).add(affine1);
+                    getList("f" + j, coe.less(0)).add(affine1);
                     AffineFraction affine2 = new AffineFraction();
-                    affine2.addBias(new Fraction((int) indexList.get(i).boundFrom).div(coe));
+                    var boundFrom = indexList.get(i).boundFrom;
+                    if (!boundFrom.isConst()) {
+                        for (var entry : boundFrom.coefficient.entrySet()) {
+                            affine2.addVarCo(entry.getKey(), new Fraction(Math.toIntExact(entry.getValue())).div(coe));
+                        }
+                    }
+                    affine2.addBias(new Fraction((int) boundFrom.bias).div(coe));
                     for (int k = j - 1; k >= 0; --k) {
                         affine2.addVarCo("f" + k, transformInverse.getElement(i, k).neg().div(coe));
                     }
-                    getList("f" + j, false).add(affine2);
-                    break;
-                } else {
-                    AffineFraction affine1 = new AffineFraction();
-                    affine1.addBias(new Fraction((int) indexList.get(i).boundFrom).div(coe));
-                    for (int k = j - 1; k >= 0; --k) {
-                        affine1.addVarCo("f" + k, transformInverse.getElement(i, k).neg().div(coe));
-                    }
-                    getList("f" + j, true).add(affine1);
-                    AffineFraction affine2 = new AffineFraction();
-                    affine2.addBias(new Fraction((int) indexList.get(i).boundTo).div(coe));
-                    for (int k = j - 1; k >= 0; --k) {
-                        affine2.addVarCo("f" + k, transformInverse.getElement(i, k).neg().div(coe));
-                    }
-                    getList("f" + j, false).add(affine2);
+                    getList("f" + j, !coe.less(0)).add(affine2);
                     break;
                 }
             }
@@ -91,27 +87,22 @@ public class FourierMotzkin {
             for (AffineFraction upper : listUpper) {
                 for (int k = num; k >= -1; --k) {
                     if (k == -1) {
-                        if (upper.bias.less(lower.bias)) {
+                        if (upper.isConst() && lower.isConst() && upper.bias.less(lower.bias)) {
                             throw new RuntimeException("No solution!");
                         }
+                        // TODO: the check of program-para
                         break;
                     }
                     if (lower.getCoe("f" + k).less(upper.getCoe("f" + k))) {
-                        var coe = upper.getCoe("f" + k).sub(lower.getCoe("f" + k));
-                        AffineFraction affine = new AffineFraction();
-                        affine.addBias(new Fraction((lower.bias.sub(upper.bias)).div(coe)));
-                        for (int t = k - 1; t >= 0; --t) {
-                            affine.addVarCo("f" + t, new Fraction((lower.getCoe("f" + t).sub(upper.getCoe("f" + t))).div(coe)));
-                        }
+                        var coe = lower.getCoe("f" + k).sub(upper.getCoe("f" + k));
+                        AffineFraction affine = new AffineFraction(upper).merge(lower, new Fraction(-1)).div(coe);
+                        affine.remove("f" + k);
                         getList("f" + k, true).add(affine);
                         break;
                     } else if (upper.getCoe("f" + k).less(lower.getCoe("f" + k))) {
                         var coe = lower.getCoe("f" + k).sub(upper.getCoe("f" + k));
-                        AffineFraction affine = new AffineFraction();
-                        affine.addBias(new Fraction((upper.bias.sub(lower.bias)).div(coe)));
-                        for (int t = k - 1; t >= 0; --t) {
-                            affine.addVarCo("f" + t, new Fraction((upper.getCoe("f" + t).sub(lower.getCoe("f" + t))).div(coe)));
-                        }
+                        AffineFraction affine = new AffineFraction(upper).merge(lower, new Fraction(-1)).div(coe);
+                        affine.remove("f" + k);
                         getList("f" + k, false).add(affine);
                         break;
                     }

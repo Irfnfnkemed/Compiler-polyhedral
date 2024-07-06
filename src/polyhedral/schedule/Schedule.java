@@ -17,6 +17,7 @@ import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 import static src.polyhedral.dependency.Constrain.*;
@@ -27,7 +28,7 @@ public class Schedule {
     private IloCplex cplex;
     private List<IloIntVar> coefficient;
     private HashMap<Coordinates, IloIntVar> bias;
-    public IloIntVar costW;
+    private HashMap<String, IloIntVar> cost; // "$" represents the bias
     public HashMap<Coordinates, List<Integer>> transformationBias;
     public Matrix transformation;
     public Matrix transformInverse;
@@ -41,11 +42,10 @@ public class Schedule {
         coefficient = new ArrayList<>();
         transformation = new Matrix(dim, dim);
         bias = new HashMap<>();
+        cost = new HashMap<>();
         transformationBias = new HashMap<>();
         try {
             cplex = new IloCplex();
-            costW = cplex.intVar(0, Integer.MAX_VALUE);
-            cplex.addGe(costW, 1);
             // set undetermined coefficient
             IloLinearNumExpr expr = cplex.linearNumExpr();
             for (int i = 0; i < dim; ++i) {
@@ -55,9 +55,14 @@ public class Schedule {
             }
             cplex.addGe(expr, 1); // avoid zero-vec
             for (var assign : model.domain.stmtList) {
-                IloIntVar x = cplex.intVar(0, Integer.MAX_VALUE);
-                bias.put(assign.coordinates, x); // bias
+                bias.put(assign.coordinates, cplex.intVar(0, Integer.MAX_VALUE)); // bias
             }
+            if (!model.domain.parameters.isEmpty()) {
+                for (String para : model.domain.parameters) {
+                    cost.put(para, cplex.intVar(0, Integer.MAX_VALUE));
+                }
+            }
+            cost.put("$", cplex.intVar(0, Integer.MAX_VALUE));
             // set dependency and cost bound
             for (Dependency dependency : model.dependencies) {
                 for (int i = 0; i < dependency.lexicographic.constrains.size(); ++i) {
@@ -67,7 +72,12 @@ public class Schedule {
             }
             // set target (min-lexi of cost function)
             IloLinearNumExpr target = cplex.linearNumExpr();
-            target.addTerm(100000, costW);
+            for (var entry : cost.entrySet()) {
+                if (!entry.getKey().equals("$")) {
+                    target.addTerm(1000000, entry.getValue());
+                }
+            }
+            target.addTerm(1000, cost.get("$"));
             for (var iloIntVar : coefficient) {
                 target.addTerm(1, iloIntVar);
             }
@@ -81,6 +91,7 @@ public class Schedule {
             throw new RuntimeException(e);
         }
         reorder();
+        System.out.println(transformation);
     }
 
     public boolean solve() {
@@ -91,8 +102,12 @@ public class Schedule {
                 //如果找到了解
                 double result = cplex.getObjValue();  // 获取解（目标函数最大值）
                 System.out.println("目标函数最大值为：" + result);
-                double x_value = cplex.getValue(costW);
-                System.err.println("s = " + x_value);
+                double x_value = cplex.getValue(cost.get("$"));
+                System.err.println("w = " + x_value);
+                for (var iloIntVar : cost.values()) {
+                    x_value = cplex.getValue(iloIntVar);
+                    System.err.println("s = " + x_value);
+                }
                 for (var iloIntVar : coefficient) {
                     x_value = cplex.getValue(iloIntVar);
                     System.err.println("c = " + x_value);
@@ -155,26 +170,28 @@ public class Schedule {
         for (Constrain constrain : dependency.lexicographic.constrains.get(lexiDim)) {
             setFarkas(constrain, rhs);
         }
-        for (String varName : lhs.keySet()) {
-            if (!varName.equals("$")) {
-                Index index = dependency.indexBound.get(getName(varName));
+        HashSet<String> varNames = new HashSet<>(lhs.keySet());
+        varNames.addAll(rhs.keySet());
+        varNames.remove("$");
+        for (String varName : varNames) {
+            Index index = dependency.indexBound.get(getName(varName));
+            if (index != null) {
                 IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
-                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                if (!index.boundFrom.isConst()) {
+                    for (var entry : index.boundFrom.coefficient.entrySet()) {
+                        getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas1);
+                    }
+                }
+                getExp("$", rhs).addTerm(-index.boundFrom.bias, farkas1);
                 IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
-                getExp("$", rhs).addTerm(index.boundTo, farkas2);
-            }
-        }
-        for (String varName : rhs.keySet()) {
-            if (!lhs.containsKey(varName) && !varName.equals("$")) {
-                Index index = dependency.indexBound.get(getName(varName));
-                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
-                getExp(varName, rhs).addTerm(1, farkas1);
-                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
-                getExp(varName, rhs).addTerm(-1, farkas2);
-                getExp("$", rhs).addTerm(index.boundTo, farkas2);
+                if (!index.boundTo.isConst()) {
+                    for (var entry : index.boundTo.coefficient.entrySet()) {
+                        getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas2);
+                    }
+                }
+                getExp("$", rhs).addTerm(index.boundTo.bias, farkas2);
             }
         }
         IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
@@ -197,7 +214,9 @@ public class Schedule {
         // use Farkas Lemma
         HashMap<String, IloLinearNumExpr> lhs = new HashMap<>(); // "$" represents constant
         HashMap<String, IloLinearNumExpr> rhs = new HashMap<>(); // "$" represents constant
-        getExp("$", lhs).addTerm(1, costW);
+        for (var entry : cost.entrySet()) {
+            getExp(entry.getKey(), lhs).addTerm(1, entry.getValue());
+        }
         for (int i = 0; i < dependency.coordinatesTo.dim; ++i) {
             getExp(dependency.coordinatesTo.varName.get(i) + "#" + dependency.id, lhs).addTerm(-1, coefficient.get(i));
         }
@@ -212,26 +231,28 @@ public class Schedule {
         for (Constrain constrain : dependency.lexicographic.constrains.get(lexiDim)) {
             setFarkas(constrain, rhs);
         }
-        for (String varName : lhs.keySet()) {
-            if (!varName.equals("$")) {
-                Index index = dependency.indexBound.get(getName(varName));
+        HashSet<String> varNames = new HashSet<>(lhs.keySet());
+        varNames.addAll(rhs.keySet());
+        varNames.remove("$");
+        for (String varName : varNames) {
+            Index index = dependency.indexBound.get(getName(varName));
+            if (index != null) {
                 IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(1, farkas1);
-                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
+                if (!index.boundFrom.isConst()) {
+                    for (var entry : index.boundFrom.coefficient.entrySet()) {
+                        getExp(entry.getKey(), rhs).addTerm(-entry.getValue(), farkas1);
+                    }
+                }
+                getExp("$", rhs).addTerm(-index.boundFrom.bias, farkas1);
                 IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
                 getExp(varName, rhs).addTerm(-1, farkas2);
-                getExp("$", rhs).addTerm(index.boundTo, farkas2);
-            }
-        }
-        for (String varName : rhs.keySet()) {
-            if (!lhs.containsKey(varName) && !varName.equals("$")) {
-                Index index = dependency.indexBound.get(getName(varName));
-                IloIntVar farkas1 = cplex.intVar(0, Integer.MAX_VALUE);
-                getExp(varName, rhs).addTerm(1, farkas1);
-                getExp("$", rhs).addTerm(-index.boundFrom, farkas1);
-                IloIntVar farkas2 = cplex.intVar(0, Integer.MAX_VALUE);
-                getExp(varName, rhs).addTerm(-1, farkas2);
-                getExp("$", rhs).addTerm(index.boundTo, farkas2);
+                if (!index.boundTo.isConst()) {
+                    for (var entry : index.boundTo.coefficient.entrySet()) {
+                        getExp(entry.getKey(), rhs).addTerm(entry.getValue(), farkas2);
+                    }
+                }
+                getExp("$", rhs).addTerm(index.boundTo.bias, farkas2);
             }
         }
         IloIntVar farkas = cplex.intVar(0, Integer.MAX_VALUE); // Farkas variable
@@ -419,10 +440,9 @@ public class Schedule {
 
     public void printUpperBound(int num) {
         var list = fourierMotzkin.upperBound.get("f" + num);
-        for (int i = 0; i < list.size(); ++i) {
+        for (AffineFraction affineFraction : list) {
             boolean flag = true;
-            var affine = list.get(i);
-            for (var entry : affine.coefficient.entrySet()) {
+            for (var entry : affineFraction.coefficient.entrySet()) {
                 if (flag) {
                     System.out.print("floor(");
                     flag = false;
@@ -433,12 +453,12 @@ public class Schedule {
                 System.out.print("*");
                 System.out.print(entry.getKey());
             }
-            if (affine.bias.less(0)) {
-                System.out.print(affine.bias);
+            if (affineFraction.bias.less(0)) {
+                System.out.print(affineFraction.bias);
             } else {
-                System.out.print("+" + affine.bias);
+                System.out.print("+" + affineFraction.bias);
             }
-            if (!affine.coefficient.isEmpty()) {
+            if (!affineFraction.coefficient.isEmpty()) {
                 System.out.print(")");
             }
             System.out.print(", ");

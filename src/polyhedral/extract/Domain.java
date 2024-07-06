@@ -176,6 +176,7 @@ public class Domain {
         if (step == 0 || (step > 0 && !upperBound) || (step < 0 && upperBound)) {
             return false;
         }
+        indexNew.simplify();
         indexList.add(indexNew);
         curCoordinates.push(indexNew);
         // check body
