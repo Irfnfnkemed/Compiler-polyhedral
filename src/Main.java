@@ -21,6 +21,7 @@ import src.polyhedral.extract.Index;
 import src.polyhedral.matrix.Fraction;
 import src.polyhedral.matrix.Matrix;
 //import src.polyhedral.schedule.FourierMotzkin;
+import src.polyhedral.rebuild.Rebuild;
 import src.semantic.Semantic;
 
 import java.io.FileInputStream;
@@ -72,6 +73,24 @@ public class Main {
             ASTBuilder AST = new ASTBuilder(ctx);
             Semantic semantic = new Semantic(AST.ASTProgram);
             semantic.check();
+            ////////////////////////////
+            FileOutputStream fileOutputStreamTmp = new FileOutputStream("./src/builtin/test_new");
+            PrintStream printStreamTmp = new PrintStream(fileOutputStreamTmp);
+            System.setOut(printStreamTmp);
+            Rebuild rebuild = new Rebuild(AST.ASTProgram);
+            name = "./src/builtin/test_new";
+            inputStream = new FileInputStream(name);
+            lexer = new MxLexer(CharStreams.fromStream(inputStream));
+            lexer.removeErrorListeners();
+            lexer.addErrorListener(new ParserErrorListener());
+            parser = new MxParser(new CommonTokenStream(lexer));
+            parser.removeErrorListeners();
+            parser.addErrorListener(new ParserErrorListener());
+            ctx = parser.program();
+            AST = new ASTBuilder(ctx);
+            semantic = new Semantic(AST.ASTProgram);
+            semantic.check();
+            //////////////////////////////////
             var ir = new IRBuilder(AST.ASTProgram, semantic.globalScope, semantic.inlineGlobalVar);
             var irPrint = new IRPrinter(ir.irProgram);
             FileOutputStream fileOutputStream = new FileOutputStream("./src/builtin/test_standard.ll");
