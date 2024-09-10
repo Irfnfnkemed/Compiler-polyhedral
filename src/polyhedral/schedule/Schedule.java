@@ -44,7 +44,11 @@ public class Schedule {
         bias = new HashMap<>();
         cost = new HashMap<>();
         transformationBias = new HashMap<>();
+        PrintStream origin = System.out;
         try {
+            FileOutputStream fileOutputStream = new FileOutputStream("./src/builtin/rebuild-log", true);
+            PrintStream printStream = new PrintStream(fileOutputStream);
+            System.setOut(printStream);
             cplex = new IloCplex();
             // set undetermined coefficient
             IloLinearNumExpr expr = cplex.linearNumExpr();
@@ -87,11 +91,11 @@ public class Schedule {
                     return;
                 }
             }
-        } catch (IloException e) {
+        } catch (IloException | FileNotFoundException e) {
             throw new RuntimeException(e);
         }
         reorder();
-        System.out.println(transformation);
+        System.setOut(origin);
     }
 
     public boolean solve() {
@@ -355,7 +359,7 @@ public class Schedule {
 
     public void print() {
         try {
-            FileOutputStream fileOutputStream = new FileOutputStream("./src/builtin/transfer");
+            FileOutputStream fileOutputStream = new FileOutputStream("./src/builtin/transfer", true);
             PrintStream printStream = new PrintStream(fileOutputStream);
             System.setOut(printStream);
             System.out.println("loop transfer:");
@@ -481,4 +485,5 @@ public class Schedule {
         }
         System.out.print("\n");
     }
+
 }

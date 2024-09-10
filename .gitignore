@@ -35,6 +35,7 @@ src/builtin/test_inline.ll
 src/builtin/test_adce.ll
 src/builtin/test_sccp.ll
 src/builtin/test_new
+src/builtin/rebuild-log
 *.s
 .idea
 out

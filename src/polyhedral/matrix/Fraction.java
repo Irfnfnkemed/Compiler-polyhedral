@@ -45,7 +45,7 @@ public class Fraction {
         }
     }
 
-    private long gcd(long a, long b) {
+    private static long gcd(long a, long b) {
         while (b != 0) {
             long tmp = b;
             b = a % b;
@@ -127,5 +127,9 @@ public class Fraction {
             return -numerator + "";
         }
         return numerator + "/" + denominator;
+    }
+
+    static public long getDenominatorLCM(long obj1, long obj2) {
+        return obj1 * obj2 / gcd(obj1, obj2);
     }
 }

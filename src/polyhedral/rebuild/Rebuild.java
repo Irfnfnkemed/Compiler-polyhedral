@@ -15,11 +15,26 @@ import src.AST.statement.loopStatement.ForLoop;
 import src.AST.statement.loopStatement.WhileLoop;
 import src.AST.statement.selectStatement.SelectStatement;
 import src.Util.type.Type;
+import src.polyhedral.dependency.Model;
+import src.polyhedral.extract.Domain;
+import src.polyhedral.matrix.Matrix;
+import src.polyhedral.schedule.Schedule;
+
+import java.util.HashSet;
+
+import static java.lang.Math.abs;
+import static src.polyhedral.matrix.Fraction.getDenominatorLCM;
 
 
 public class Rebuild implements ASTVisitor {
 
+    Schedule schedule = null;
+    HashSet<String> already_index;
+    int index = 0;
+    int cnt = 0;
+
     public Rebuild(Program program) {
+        already_index = new HashSet<>();
         visit(program);
     }
 
@@ -111,6 +126,17 @@ public class Rebuild implements ASTVisitor {
 
     @Override
     public void visit(Statement node) {
+        if (schedule != null) {
+            for (int i = 0; i < schedule.hermite.row(); ++i) {
+                String indexName = schedule.model.domain.indexList.get(i).varName;
+                if (schedule.model.domain.variables.get(index).contains(indexName) && !already_index.contains(indexName)) {
+                    System.out.print("int " + indexName + " = ");
+                    rebuildTrans(i);
+                    System.out.print(";\n");
+                    already_index.add(indexName);
+                }
+            }
+        }
         if (node.variableDef != null) {
             node.variableDef.accept(this);
         } else if (node.suite != null) {
@@ -138,7 +164,38 @@ public class Rebuild implements ASTVisitor {
 
     @Override
     public void visit(ForLoop node) {
-        System.out.print("for!!@!!!!!");
+        boolean rebuild = false;
+        try {
+            if (schedule == null) {
+                Domain domain = new Domain();
+                if (domain.getLoop(node)) {
+                    Model model = new Model(domain);
+                    if (model.setDependency()) {
+                        schedule = new Schedule(model);
+                        index = -1;
+                        rebuild = true;
+                        already_index.clear();
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+        }
+        if (schedule != null) {
+            ++index;
+            String rebuildLow = rebuildLowerBound(index);
+            String rebuildUp = rebuildUpperBound(index);
+            String rebuildIndex = "rebuildLoopIndex_f" + index;
+            System.out.print("for(int " + rebuildIndex + " = " + rebuildLow + "; ");
+            System.out.print(rebuildIndex + " <= " + rebuildUp + "; ");
+            System.out.print(rebuildIndex + " = " + rebuildIndex + " + " + schedule.hermite.getElement(index, index) + "){\n");
+            node.stmt.accept(this);
+            System.out.print("}\n");
+        }
+        if (rebuild) {
+            schedule = null;
+            index = -1;
+            already_index.clear();
+        }
     }
 
     @Override
@@ -324,5 +381,85 @@ public class Rebuild implements ASTVisitor {
         for (int i = 0; i < type.dim; ++i) {
             System.out.print("[]");
         }
+    }
+
+    public String rebuildLowerBound(int num) {
+        String rebuildLow = "rebuildLow_" + cnt++;
+        System.out.print("int " + rebuildLow + " = -2147483648;\n");
+        var list = schedule.fourierMotzkin.lowerBound.get("f" + num);
+        for (src.polyhedral.schedule.AffineFraction affine : list) {
+            String rebuildTmp = "rebuildTmp_" + cnt++;
+            System.out.print("int " + rebuildTmp + " = ");
+            affine.rebuild(true); // ceil
+            System.out.print(";\n");
+            System.out.print(rebuildTmp + " = " + rebuildTmp + " + (");
+            rebuildMatrixCoe(schedule.hermite, num);
+            System.out.print(" - " + rebuildTmp);
+            System.out.print(") % ");
+            System.out.print(schedule.hermite.getElement(num, num));
+            System.out.print(";\n");
+            System.out.print(rebuildLow + " = " + rebuildLow + " < " + rebuildTmp + " ? " + rebuildTmp + " : " + rebuildLow + ";\n");
+        }
+        return rebuildLow;
+    }
+
+    public String rebuildUpperBound(int num) {
+        String rebuildUp = "rebuildUp_" + cnt++;
+        System.out.print("int " + rebuildUp + " = 2147483647;\n");
+        var list = schedule.fourierMotzkin.upperBound.get("f" + num);
+        for (src.polyhedral.schedule.AffineFraction affine : list) {
+            String rebuildTmp = "rebuildTmp_" + cnt++;
+            System.out.print("int " + rebuildTmp + " = ");
+            affine.rebuild(false); // floor
+            System.out.print(";\n");
+            System.out.print(rebuildUp + " = " + rebuildUp + " < " + rebuildTmp + " ? " + rebuildUp + " : " + rebuildTmp + ";\n");
+        }
+        return rebuildUp;
+    }
+
+    public void rebuildMatrixCoe(Matrix matrix, int num) {
+        if (num == 0) {
+            return;
+        }
+        long de = 1;
+        for (int i = 0; i < num; ++i) {
+            de = getDenominatorLCM(de, matrix.getElement(num, i).denominator());
+        }
+        de = abs(de);
+        System.out.print("(");
+        for (int i = 0; i < num; ++i) {
+            if (i != 0) {
+                System.out.print(" + ");
+            }
+            System.out.print(de * matrix.getElement(num, i).numerator() / matrix.getElement(num, i).denominator());
+            System.out.print("*");
+            System.out.print("rebuildLoopIndex_f" + i);
+        }
+        System.out.print(")/");
+        System.out.print(de);
+    }
+
+    public void rebuildTrans(int num) {
+        long de = 1;
+        for (int i = 0; i < schedule.transformInverse.row(); ++i) {
+            de = getDenominatorLCM(de, schedule.transformation.getElement(num, i).denominator());
+        }
+        de = abs(de);
+        System.out.print("(");
+        for (int i = 0; i < schedule.transformInverse.row(); ++i) {
+            if (i != 0) {
+                System.out.print(" + ");
+            }
+            long tmp = de * schedule.transformInverse.getElement(num, i).numerator() / schedule.transformInverse.getElement(num, i).denominator();
+            if (tmp != 0) {
+                System.out.print(tmp);
+                System.out.print("*");
+                System.out.print("rebuildLoopIndex_f" + i);
+            } else {
+                System.out.print(0);
+            }
+        }
+        System.out.print(")/");
+        System.out.print(de);
     }
 }

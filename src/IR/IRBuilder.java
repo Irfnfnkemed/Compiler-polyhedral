@@ -353,7 +353,7 @@ public class IRBuilder implements ASTVisitor {
             var tmpIf = ((FuncDef) now).getIf();
             int tmp = anonymousLabel++;
             if (node.falseStmt == null ||
-                    (node.falseStmt.suite != null && node.falseStmt.suite.statementList.size() == 0)) {
+                    (node.falseStmt.suite != null && node.falseStmt.suite.statementList.isEmpty())) {
                 ((FuncDef) now).push(new Br(exp.pop().varName, "%trueLabel-" + tmp, "%toLabel-" + tmp, (FuncDef) now));
                 ((FuncDef) now).pushBlock(new Block("trueLabel-" + tmp));
                 node.trueStmt.accept(this);
@@ -411,15 +411,6 @@ public class IRBuilder implements ASTVisitor {
 
     @Override
     public void visit(ForLoop node) {
-//       // try {
-//            Domain d = new Domain();
-//            boolean f = d.getLoop(node);
-//            Model m = new Model(d);
-//            f = m.setDependency();
-//            Schedule s = new Schedule(m);
-//      //  } catch (RuntimeException o) {
-//           // throw new RuntimeException();
-//       // }
         ((FuncDef) now).pushLoop();
         var tmp = ((FuncDef) now).getLoop();
         String condition = var("loopCondition", node.scope.loopPos.line, node.scope.loopPos.column);

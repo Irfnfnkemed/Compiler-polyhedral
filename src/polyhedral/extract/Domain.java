@@ -5,16 +5,15 @@ import src.AST.expression.*;
 import src.AST.statement.Statement;
 import src.AST.statement.loopStatement.ForLoop;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Stack;
+import java.util.*;
 
 public class Domain {
     public List<Index> indexList;
     public List<Assign> stmtList;
     public HashSet<String> parameters;
+    public List<HashSet<String>> variables;
     private long result;
+    private boolean visitMem = false;
     private Coordinates curCoordinates;
 
 
@@ -23,10 +22,13 @@ public class Domain {
         stmtList = new ArrayList<>();
         curCoordinates = new Coordinates();
         parameters = new HashSet<>();
+        variables = new ArrayList<>();
     }
 
     public boolean getLoop(ForLoop forLoop) {
         Index indexNew = new Index();
+        variables.add(new HashSet<>());
+
         // check init-exp
         if (forLoop.parallelExp != null) {
             return false;
@@ -179,6 +181,7 @@ public class Domain {
         indexNew.simplify();
         indexList.add(indexNew);
         curCoordinates.push(indexNew);
+
         // check body
         if (!getStmt(forLoop.stmt)) {
             return false;
@@ -290,21 +293,28 @@ public class Domain {
 
 
     public boolean getMem(Expression exp, MemVisit memVisit) {
+        boolean tmp = visitMem;
+        visitMem = true;
         if (exp instanceof VariableLhsExp) {
             memVisit.setVarName(((VariableLhsExp) exp).variableName);
+            visitMem = tmp;
             return true;
         }
         if (exp instanceof ArrayElementLhsExp) {
             if (!getMem(((ArrayElementLhsExp) exp).variable, memVisit)) {
+                visitMem = tmp;
                 return false;
             }
             Affine indexAffine = new Affine();
             if (!getAddrAffine(((ArrayElementLhsExp) exp).index, 1, indexAffine)) {
+                visitMem = tmp;
                 return false;
             }
             memVisit.addDim(indexAffine);
+            visitMem = tmp;
             return true;
         }
+        visitMem = tmp;
         return false;
     }
 
@@ -315,6 +325,9 @@ public class Domain {
             return true;
         }
         if (exp instanceof VariableLhsExp) {
+            if (visitMem) {
+                variables.get(variables.size() - 1).add(((VariableLhsExp) exp).variableName);
+            }
             affine.addVarCo(((VariableLhsExp) exp).variableName, constWeight);
             return true;
         }

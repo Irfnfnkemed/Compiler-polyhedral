@@ -4,6 +4,7 @@ import src.AST.expression.Expression;
 import src.AST.expression.ParallelExp;
 import src.AST.statement.Statement;
 import src.AST.definition.variableDef.VariableDef;
+import src.polyhedral.schedule.Schedule;
 
 public class ForLoop extends LoopStatement {
     public ParallelExp parallelExp;

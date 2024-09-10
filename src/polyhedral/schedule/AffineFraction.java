@@ -5,6 +5,9 @@ import src.polyhedral.matrix.Fraction;
 
 import java.util.HashMap;
 
+import static java.lang.Math.abs;
+import static src.polyhedral.matrix.Fraction.getDenominatorLCM;
+
 public class AffineFraction {
     public HashMap<String, Fraction> coefficient;
     public Fraction bias;
@@ -78,5 +81,46 @@ public class AffineFraction {
 
     public void remove(String varName) {
         coefficient.remove(varName);
+    }
+
+    public void rebuild(boolean isCeil) {
+        long de = bias.denominator();
+        for (var entry : coefficient.entrySet()) {
+            de = getDenominatorLCM(de, entry.getValue().denominator());
+        }
+        de = abs(de);
+        if (isCeil) {
+            System.out.print("-((");
+        } else {
+            System.out.print("(");
+        }
+        if (isCeil) {
+            System.out.print(-de * bias.numerator() / bias.denominator());
+        } else {
+            System.out.print(de * bias.numerator() / bias.denominator());
+        }
+        for (var entry : coefficient.entrySet()) {
+
+            System.out.print(" + ");
+            if (isCeil) {
+                System.out.print(-de * entry.getValue().numerator() / entry.getValue().denominator());
+            } else {
+                System.out.print(de * entry.getValue().numerator() / entry.getValue().denominator());
+            }
+            System.out.print("*");
+            if (entry.getKey().matches(".*f\\d+.*")) {
+                System.out.print("rebuildLoopIndex_" + entry.getKey());
+            } else {
+                System.out.print(entry.getKey());
+            }
+        }
+        if (isCeil) {
+            System.out.print(")/");
+            System.out.print(de);
+            System.out.print(")");
+        } else {
+            System.out.print(")/");
+            System.out.print(de);
+        }
     }
 }
